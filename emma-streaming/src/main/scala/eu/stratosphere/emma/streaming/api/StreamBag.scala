@@ -47,7 +47,7 @@ sealed class StreamBag[+A](private[streaming] val sb: Stream[DataBag[A]]) {
   // Misc
   // --------------------------------------------------------
 
-  def distinct() = StreamBag(Stream.unfold[DataBag[A], (Set[A], Stream[DataBag[A]])](
+  def distinct = StreamBag(Stream.unfold[DataBag[A], (Set[A], Stream[DataBag[A]])](
     (Set.empty[A], sb), {
       case (seen, xs) => {
         val h = xs.head.distinct()
@@ -59,7 +59,7 @@ sealed class StreamBag[+A](private[streaming] val sb: Stream[DataBag[A]]) {
 
   def groupBy[K](k: (A) => K): StreamBag[(K, StreamBag[A])] =
   // this is exactly the same as for Bag
-    for (key <- this.map(k).distinct()) yield (key, for (y <- this; if k(y) == key) yield y)
+    for (key <- this.map(k).distinct) yield (key, for (y <- this; if k(y) == key) yield y)
 
 }
 

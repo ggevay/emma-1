@@ -96,6 +96,10 @@ object Windows {
     }.withFilter(_.isDefined).map(_.get)
   }
 
+  // TODO: Add triggering here:
+  // add an extra parameter that creates a trigger stream for every window
+  // and we "zip" the window with it like this: if (s.t == tri.t)
+  // And then also add a default trigger assigner, which triggers once at the end of the window.
   def createWindows[A](xs: StreamBag[A], ws: StreamBag[Window]): StreamBag[(Window, StreamBag[A])] =
     for {
       w <- ws
@@ -109,10 +113,13 @@ object Windows {
         })
     }
 
-  def main(args: Array[String]) {
+  def main(args: Array[String]): Unit = {
     val xs: StreamBag[Int] = Stream.naturals
-    val ys: StreamBag[Char] = Seq(DataBag(Seq('a', 'b', 'b')), DataBag(Seq('c', 'd')), DataBag(), DataBag(), DataBag(Seq('d', 'a', 'e')))
-    val ys2: StreamBag[Char] = Seq(DataBag(), DataBag(), DataBag(Seq('a', 'b', 'b')), DataBag(Seq('c', 'd')), DataBag(), DataBag(), DataBag(Seq('d', 'a', 'e')))
+    val ys: StreamBag[Char] =
+      Seq(DataBag(Seq('a', 'b', 'b')), DataBag(Seq('c', 'd')), DataBag(), DataBag(), DataBag(Seq('d', 'a', 'e')))
+    val ys2: StreamBag[Char] =
+      Seq(DataBag(), DataBag(), DataBag(Seq('a', 'b', 'b')), DataBag(Seq('c', 'd')),
+        DataBag(), DataBag(), DataBag(Seq('d', 'a', 'e')))
     val zs: StreamBag[Int] = Seq(DataBag(Seq(2)), DataBag(Seq(3, 1)))
     val b: DataBag[String] = DataBag(Seq("anna", "emma"))
 
