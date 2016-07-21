@@ -16,22 +16,21 @@ class NormalizeSpec extends BaseCompilerSpec {
   import compiler._
   import universe._
 
-  // ---------------------------------------------------------------------------
-  // Helper methods
-  // ---------------------------------------------------------------------------
-
-  lazy val normalize: Tree => Tree = {
-    time(Comprehension.normalize(API.bagSymbol)(_), "normalize")
-  } andThen {
-    api.Owner.at(get.enclosingOwner)
-  }
-
-  lazy val anfPipeline: Expr[Any] => Tree =
+  val anf: Expr[Any] => Tree =
     compiler.pipeline(typeCheck = true)(
       Core.resolveNameClashes,
       Core.anf,
       Core.simplify,
       Comprehension.resugar(API.bagSymbol)
+    ).compose(_.tree)
+
+  val normalize: Expr[Any] => Tree =
+    compiler.pipeline(typeCheck = true)(
+      Core.resolveNameClashes,
+      Core.anf,
+      Core.simplify,
+      Comprehension.resugar(API.bagSymbol),
+      tree => time(Comprehension.normalize(API.bagSymbol)(tree), "normalize")
     ).compose(_.tree)
 
   // ---------------------------------------------------------------------------
@@ -41,7 +40,7 @@ class NormalizeSpec extends BaseCompilerSpec {
   // hard coded: 2 generators
   val (inp1, exp1) = {
 
-    val inp = anfPipeline(reify {
+    val inp = reify {
       val users$1 = users
       val names = flatten[(User, Click), DataBag] {
         comprehension[DataBag[(User, Click)], DataBag] {
@@ -59,9 +58,9 @@ class NormalizeSpec extends BaseCompilerSpec {
         }
       }
       names
-    })
+    }
 
-    val exp = anfPipeline(reify {
+    val exp = reify {
       val users$1 = users
       val clicks$1 = clicks
       val names = comprehension[(User, Click), DataBag] {
@@ -72,7 +71,7 @@ class NormalizeSpec extends BaseCompilerSpec {
         }
       }
       names
-    })
+    }
 
     (inp, exp)
   }
@@ -80,7 +79,7 @@ class NormalizeSpec extends BaseCompilerSpec {
   // hard coded: 3 generators
   val (inp2, exp2) = {
 
-    val inp = anfPipeline(reify {
+    val inp = reify {
       val users$1 = users
       val names = flatten[(Ad, User, Click), DataBag] {
         comprehension[DataBag[(Ad, User, Click)], DataBag] {
@@ -107,9 +106,9 @@ class NormalizeSpec extends BaseCompilerSpec {
         }
       }
       names
-    })
+    }
 
-    val exp = anfPipeline(reify {
+    val exp = reify {
       val users$1 = users
       val clicks$1 = clicks
       val ads$1 = ads
@@ -122,7 +121,7 @@ class NormalizeSpec extends BaseCompilerSpec {
         }
       }
       names
-    })
+    }
 
     (inp, exp)
   }
@@ -130,7 +129,7 @@ class NormalizeSpec extends BaseCompilerSpec {
   // hard-coded: 3 generators and a filter
   val (inp3, exp3) = {
 
-    val inp = anfPipeline(reify {
+    val inp = reify {
       val users$1 = users
       val names = flatten[(Ad, User, Click), DataBag] {
         comprehension[DataBag[(Ad, User, Click)], DataBag] {
@@ -167,9 +166,9 @@ class NormalizeSpec extends BaseCompilerSpec {
         }
       }
       names
-    })
+    }
 
-    val exp = anfPipeline(reify {
+    val exp = reify {
       val users$1 = users
       val clicks$1 = clicks
       val ads$1 = ads
@@ -188,7 +187,7 @@ class NormalizeSpec extends BaseCompilerSpec {
         }
       }
       names
-    })
+    }
 
     (inp, exp)
   }
@@ -196,7 +195,7 @@ class NormalizeSpec extends BaseCompilerSpec {
   // resugared: three generators and two filters at the end
   val (inp4, exp4) = {
 
-    val inp = anfPipeline(reify {
+    val inp = reify {
       for {
         u <- users
         a <- ads
@@ -204,9 +203,9 @@ class NormalizeSpec extends BaseCompilerSpec {
         if u.id == c.userID
         if a.id == c.adID
       } yield (c.time, a.`class`)
-    })
+    }
 
-    val exp = anfPipeline(reify {
+    val exp = reify {
       val users$1 = users
       val ads$1 = ads
       val clicks$1 = clicks
@@ -218,7 +217,7 @@ class NormalizeSpec extends BaseCompilerSpec {
         guard(a.id == c.adID)
         head(c.time, a.`class`)
       }
-    })
+    }
 
     (inp, exp)
   }
@@ -226,7 +225,7 @@ class NormalizeSpec extends BaseCompilerSpec {
   // resugared: three generators and two interleaved filters
   val (inp5, exp5) = {
 
-    val inp = anfPipeline(reify {
+    val inp = reify {
       for {
         c <- clicks
         u <- users
@@ -234,9 +233,9 @@ class NormalizeSpec extends BaseCompilerSpec {
         a <- ads
         if a.id == c.adID
       } yield (c.time, a.`class`)
-    })
+    }
 
-    val exp = anfPipeline(reify {
+    val exp = reify {
       val clicks$1 = clicks
       val users$1 = users
       val ads$1 = ads
@@ -248,7 +247,7 @@ class NormalizeSpec extends BaseCompilerSpec {
         guard(a.id == c.adID)
         head(c.time, a.`class`)
       }
-    })
+    }
 
     (inp, exp)
   }
@@ -256,13 +255,13 @@ class NormalizeSpec extends BaseCompilerSpec {
   // resugared: one patmat generator and no filters
   val (inp6, exp6) = {
 
-    val inp = anfPipeline(reify {
+    val inp = reify {
       for {
         Click(adID, userID, time) <- clicks
       } yield (adID, time)
-    })
+    }
 
-    val exp = anfPipeline(reify {
+    val exp = reify {
       val clicks$11: DataBag[Click] = clicks;
       comprehension[(Long, Instant), DataBag]({
         val check$ifrefutable$1: Click = generator[Click, DataBag](clicks$11);
@@ -273,7 +272,7 @@ class NormalizeSpec extends BaseCompilerSpec {
           Tuple2.apply[Long, Instant](adID$6, time$6)
         })
       })
-    })
+    }
 
     (inp, exp)
   }
@@ -281,15 +280,15 @@ class NormalizeSpec extends BaseCompilerSpec {
   // resugared: patmat with two generators and one filter
   val (inp7, exp7) = {
 
-    val inp = anfPipeline(reify {
+    val inp = reify {
       for {
         Click(adID, userID, time) <- clicks
         Ad(id, name, _) <- ads
         if id == adID
       } yield (adID, time)
-    })
+    }
 
-    val exp = anfPipeline(reify {
+    val exp = reify {
       val clicks$1 = clicks;
       val ads$1 = ads;
       comprehension[(Long, Instant), DataBag]({
@@ -315,7 +314,7 @@ class NormalizeSpec extends BaseCompilerSpec {
           Tuple2.apply[Long, Instant](adID$2, time$2)
         })
       })
-    })
+    }
 
     (inp, exp)
   }
@@ -326,28 +325,28 @@ class NormalizeSpec extends BaseCompilerSpec {
 
   "normalize hard-coded comprehensions" - {
     "with two generators" in {
-      normalize(inp1) shouldBe alphaEqTo(exp1)
+      normalize(inp1) shouldBe alphaEqTo(anf(exp1))
     }
     "with three generators" in {
-      normalize(inp2) shouldBe alphaEqTo(exp2)
+      normalize(inp2) shouldBe alphaEqTo(anf(exp2))
     }
     "with three generators and two filters" in {
-      normalize(inp3) shouldBe alphaEqTo(exp3)
+      normalize(inp3) shouldBe alphaEqTo(anf(exp3))
     }
   }
 
   "normalize resugared comprehensions" - {
     "with three generators and two filters at the end" in {
-      normalize(inp4) shouldBe alphaEqTo(exp4)
+      normalize(inp4) shouldBe alphaEqTo(anf(exp4))
     }
     "with three generators and two interleaved filters" in {
-      normalize(inp5) shouldBe alphaEqTo(exp5)
+      normalize(inp5) shouldBe alphaEqTo(anf(exp5))
     }
     "with one patmat generator and no filters" in {
-      normalize(inp6) shouldBe alphaEqTo(exp6)
+      normalize(inp6) shouldBe alphaEqTo(anf(exp6))
     }
     "with two patmat generators and one filter" in {
-      normalize(inp7) shouldBe alphaEqTo(exp7)
+      normalize(inp7) shouldBe alphaEqTo(anf(exp7))
     }
   }
 }
