@@ -3,14 +3,15 @@ package eu.stratosphere.emma.compiler.lang.comprehension
 import eu.stratosphere.emma.compiler.Common
 import eu.stratosphere.emma.compiler.lang.core.Core
 
+import scala.collection.mutable.ListBuffer
+
 /** Resugarding and desugaring of comprehension syntax. */
 private[comprehension] trait ReDeSugar extends Common {
   self: Core with Comprehension =>
 
-  import universe._
-  import Comprehension.{MonadOp, Syntax, asBlock}
-  import Term._
-  import Tree._
+  import u._ // FIXME: if I remove this, I get 'elimitated by erasure' type
+  import Comprehension.{MonadOp, asLet}
+  import Core.{Lang => core}
 
   private[comprehension] object ReDeSugar {
 
@@ -29,48 +30,62 @@ private[comprehension] trait ReDeSugar extends Common {
      * @param tree  The [[Tree]] to be resugared.
      * @return The input [[Tree]] with resugared comprehensions.
      */
-    def resugar(monad: Symbol)(tree: Tree): Tree = {
+    def resugar(monad: u.Symbol)(tree: u.Tree): u.Tree = {
       // construct comprehension syntax helper for the given monad
-      val cs = new Comprehension.Syntax(monad: Symbol)
+      val cs = new Comprehension.Syntax(monad)
 
-      object fn {
+      object Lookup {
         val meta = new Core.Meta(tree)
 
-        def unapply(tree: Tree): Option[(ValDef, Tree)] = tree match {
-          case q"(${arg: ValDef}) => ${body: Tree}" =>
-            Some(arg, body)
-          case Term.ref(sym) =>
-            meta.valdef(sym) map {
-              case ValDef(_, _, _, Function(arg :: Nil, body)) =>
-                (arg, body)
-            }
+        def unapply(tree: u.Tree): Option[u.Tree] = tree match {
+          case core.ValRef(sym) => meta.valdef(sym).map(_.rhs)
+          case _ => None
         }
       }
 
-      val transform: Tree => Tree = preWalk {
-        case cs.map(xs, fn(arg, body)) =>
-          cs.comprehension(
-            List(
-              cs.generator(Term sym arg, asBlock(xs))),
-            cs.head(asBlock(body)))
+      val transform = api.TopDown.transform {
+        case cs.map(xs, Lookup(core.Lambda(_, arg :: Nil, body))) =>
+          // FIXME: is there a cheap way to avoid mutability?
+          val sym = api.Sym.of(arg).asTerm // API: get term sym directly
+          resetFlags(sym, u.Flag.PARAM)
+          setFlags(sym, u.Flag.SYNTHETIC)
 
-        case cs.flatMap(xs, fn(arg, body)) =>
+          cs.comprehension(
+            Seq(
+              cs.generator(sym, asLet(xs))),
+            cs.head(asLet(body)))
+
+        case cs.flatMap(xs, Lookup(core.Lambda(_, arg :: Nil, body))) =>
+          // FIXME: is there a cheap way to avoid mutability?
+          val sym = api.Sym.of(arg).asTerm // API: get term sym directly
+          resetFlags(sym, u.Flag.PARAM)
+          setFlags(sym, u.Flag.SYNTHETIC)
+
           cs.flatten(
-            block(
+            core.Let()()()(
               cs.comprehension(
-                List(
-                  cs.generator(Term sym arg, asBlock(xs))),
-                cs.head(asBlock(body)))))
+                Seq(
+                  cs.generator(sym, asLet(xs))),
+                cs.head(asLet(body)))))
 
-        case cs.withFilter(xs, fn(arg, body)) =>
+        case cs.withFilter(xs, Lookup(core.Lambda(_, arg :: Nil, body))) =>
+          // FIXME: is there a cheap way to avoid mutability?
+          val sym = api.Sym.of(arg).asTerm // API: get term sym directly
+          resetFlags(sym, u.Flag.PARAM)
+          setFlags(sym, u.Flag.SYNTHETIC)
+
           cs.comprehension(
-            List(
-              cs.generator(Term sym arg, asBlock(xs)),
-              cs.guard(asBlock(body))),
-            cs.head(block(ref(Term sym arg))))
+            Seq(
+              cs.generator(sym, asLet(xs)),
+              cs.guard(asLet(body))),
+            cs.head(core.Let()()()(core.ValRef(sym))))
       }
 
-      (transform andThen Core.dce) (tree)
+      ({
+        transform(_: u.Tree).tree
+      } andThen {
+        Core.dce
+      }) (tree)
     }
 
     /**
@@ -88,43 +103,36 @@ private[comprehension] trait ReDeSugar extends Common {
      * @param tree  The [[Tree]] to be desugared.
      * @return The input [[Tree]] with desugared comprehensions.
      */
-    def desugar(monad: Symbol)(tree: Tree): Tree = {
+    def desugar(monad: u.Symbol)(tree: u.Tree): u.Tree = {
       // construct comprehension syntax helper for the given monad
-      val cs = new Syntax(monad: Symbol)
+      val cs = new Comprehension.Syntax(monad)
 
-      def hasNestedBlocks(tree: Block): Boolean = {
-        val inStats = tree.stats exists {
-          case ValDef(_, _, _, _: Block) => true
-          case _ => false
-        }
-        val inExpr = tree.expr match {
-          case _: Block => true
-          case _ => false
-        }
-        inStats || inExpr
-      }
+      val transform = api.BottomUp.transform {
 
-      val transform: Tree => Tree = postWalk {
+        case core.Let(vals, defs, effs, expr) =>
+          val uvals = ListBuffer.empty[u.ValDef]
 
-        case parent: Block if hasNestedBlocks(parent) =>
-          // flatten (potentially) nested block stats
-          val flatStats = parent.stats.flatMap {
-            case val_(sym, Block(stats, expr), flags) =>
-              stats :+ val_(sym, expr, flags)
-            case stat =>
-              stat :: Nil
-          }
-          // flatten (potentially) nested block expr
-          val flatExpr = parent.expr match {
-            case Block(stats, expr) =>
-              stats :+ expr
-            case expr =>
-              expr :: Nil
+          // unnest potentially nested simple let blocks occurring on the rhs of parent vals
+          vals foreach {
+            case core.ValDef(sym, core.Let(nvals, Nil, Nil, nexpr), flags) =>
+              uvals ++= nvals
+              uvals += core.ValDef(sym, nexpr, flags)
+            case val_ =>
+              uvals += val_
           }
 
-          block(flatStats ++ flatExpr)
+          // unnest potentially nested simple let blocks occurring on the parent expr
+          val uexpr = expr match {
+            case core.Let(nvals, Nil, Nil, nexpr) =>
+              uvals ++= nvals
+              nexpr
+            case _ =>
+              expr
+          }
 
-        case t@cs.comprehension(cs.generator(sym, block(_, rhs)) :: qs, cs.head(expr)) =>
+          core.Let(uvals.result():_*)(defs:_*)(effs:_*)(uexpr)
+
+        case t@cs.comprehension(cs.generator(sym, core.Let(_, _, _, rhs)) :: qs, cs.head(expr)) =>
 
           val (guards, rest) = qs span {
             case cs.guard(_) => true
@@ -135,18 +143,18 @@ private[comprehension] trait ReDeSugar extends Common {
           val (tail, prefix) = {
             ({
               // step (1) accumulate the result
-              (_: List[Tree]).foldLeft((Term sym rhs, List.empty[Tree]))((res, guard) => {
+              (_: List[u.Tree]).foldLeft(((api.Sym of rhs).asTerm, List.empty[u.ValDef]))((res, guard) => { // API
                 val (currSym, currPfx) = res
                 val cs.guard(expr) = guard
 
-                val funcRhs = lambda(sym)(expr)
-                val funcNme = Term.name.fresh("anonfun")
-                val funcSym = Term.sym.free(funcNme, funcRhs.tpe)
-                val funcVal = val_(funcSym, funcRhs)
+                val funcRhs = core.Lambda(sym)(expr)
+                val funcNme = api.TermName.fresh("guard")
+                val funcSym = api.TermSym.free(funcNme, funcRhs.tpe)
+                val funcVal = api.ValDef(funcSym, funcRhs)
 
-                val nextNme = Term.name.fresh(cs.withFilter.symbol.name)
-                val nextSym = Term.sym.free(nextNme, currSym.info)
-                val nextVal = val_(nextSym, cs.withFilter(ref(currSym))(ref(funcSym)))
+                val nextNme = api.TermName(cs.withFilter.symbol.name)
+                val nextSym = api.TermSym.free(nextNme, currSym.info)
+                val nextVal = api.ValDef(nextSym, cs.withFilter(core.BindingRef(currSym))(core.BindingRef(funcSym)))
 
                 (nextSym, nextVal :: funcVal :: currPfx)
               })
@@ -157,19 +165,17 @@ private[comprehension] trait ReDeSugar extends Common {
           }
 
           expr match {
-            case block(Nil, id: Ident) if id.symbol == sym =>
+            case core.Let(Nil, Nil, Nil, core.BindingRef(`sym`)) =>
               // trivial head expression consisting of the matched sym 'x'
               // omit the resulting trivial mapper
 
-              Core.simplify(block(
-                prefix,
-                ref(tail)))
+              Core.simplify(core.Let(prefix: _*)()()(core.BindingRef(tail)))
 
             case _ =>
               // append a map or a flatMap to the result depending on
               // the size of the residual qualifier sequence 'qs'
 
-              val (op: MonadOp, body: Tree) = rest match {
+              val (op: MonadOp, body: u.Tree) = rest match {
                 case Nil => (
                   cs.map,
                   expr)
@@ -180,23 +186,20 @@ private[comprehension] trait ReDeSugar extends Common {
                     cs.head(expr)))
               }
 
-              val func = lambda(sym)(body)
-              val term = Term.sym.free(Term.name.lambda, func.tpe)
+              val func = core.Lambda(sym)(body)
+              val term = api.TermSym.free(api.TermName.lambda, func.tpe)
 
-              block(
-                prefix,
-                val_(term, func),
-                op(ref(tail))(ref(term)))
+              core.Let(
+                prefix :+ core.ValDef(term, func):_*
+              )()()(op(core.BindingRef(tail))(core.BindingRef(term)))
           }
 
-        case t@cs.flatten(block(stats, expr@cs.map(xs, fn))) =>
-
-          block(
-            stats,
-            cs.flatMap(xs)(fn))
+        case t@cs.flatten(core.Let(vals, defs, effs, expr@cs.map(xs, fn))) =>
+          core.Let(vals:_*)(defs:_*)(effs:_*)(cs.flatMap(xs)(fn))
       }
 
-      transform(tree)
+      transform(tree).tree
     }
   }
+
 }

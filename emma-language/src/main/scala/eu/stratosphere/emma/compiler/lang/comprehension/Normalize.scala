@@ -8,7 +8,7 @@ private[comprehension] trait Normalize extends Common
   self: Core with Comprehension =>
 
   import universe._
-  import Comprehension.{Syntax, asBlock}
+  import Comprehension.{Syntax, asLet}
   import Tree._
 
   private[comprehension] object Normalize {
@@ -314,7 +314,7 @@ private[comprehension] trait Normalize extends Common
         // construct an unnested version of the parent comprehension
         val unnested = comprehension(
           rm.qs1 ++ rm.qs2 ++ (rm.qs3 map subst),
-          head(asBlock(subst(rm.hd1)))
+          head(asLet(subst(rm.hd1)))
         )
 
         // construct and return a new enclosing block
