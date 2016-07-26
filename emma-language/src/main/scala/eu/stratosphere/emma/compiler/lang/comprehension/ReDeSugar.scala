@@ -9,7 +9,7 @@ import scala.collection.mutable.ListBuffer
 private[comprehension] trait ReDeSugar extends Common {
   self: Core with Comprehension =>
 
-  import u._ // FIXME: if I remove this, I get 'elimitated by erasure' type
+  import UniverseImplicits._
   import Comprehension.{MonadOp, asLet}
   import Core.{Lang => core}
 
