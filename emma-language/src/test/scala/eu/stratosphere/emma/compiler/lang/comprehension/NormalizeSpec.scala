@@ -319,6 +319,48 @@ class NormalizeSpec extends BaseCompilerSpec {
     (inp, exp)
   }
 
+  val (inp8, exp8) = {
+
+    val inp = reify {
+      val xs = for {
+        Click(adID, userID, time) <- clicks
+        Ad(id, name, _) <- ads
+        if id == adID
+      } yield time.toEpochMilli
+      xs.fetch()
+    }
+
+    val exp = reify {
+      val clicks$1 = clicks;
+      val ads$1 = ads;
+      val xs = comprehension[Long, DataBag]({
+        val click$1 = generator[Click, DataBag]({
+          clicks$1
+        });
+        val ad$1 = generator[Ad, DataBag]({
+          ads$1
+        });
+        guard({
+          val click$2 = click$1: Click@unchecked
+          val adID$1 = click$2.adID
+          val time$1 = click$2.time
+          val x$5: Ad = ad$1: Ad@unchecked;
+          val ad$2 = ad$1: Ad
+          val id$1 = ad$2.id
+          id$1 == adID$1
+        });
+        head[Long]({
+          val click$3 = click$1: Click@unchecked
+          val time$2 = click$3.time;
+          time$2.toEpochMilli
+        })
+      })
+      xs.fetch()
+    }
+
+    (inp, exp)
+  }
+
   // ---------------------------------------------------------------------------
   // Spec tests
   // ---------------------------------------------------------------------------
@@ -345,8 +387,11 @@ class NormalizeSpec extends BaseCompilerSpec {
     "with one patmat generator and no filters" in {
       normalize(inp6) shouldBe alphaEqTo(anf(exp6))
     }
-    "with two patmat generators and one filter" in {
+    "with two patmat generators and one filter (at the end)" in {
       normalize(inp7) shouldBe alphaEqTo(anf(exp7))
+    }
+    "with two patmat generators and one filter (itermediate result)" in {
+      normalize(inp8) shouldBe anf(exp8)
     }
   }
 }
