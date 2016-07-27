@@ -20,8 +20,15 @@ class NormalizeSpec extends BaseCompilerSpec {
     compiler.pipeline(typeCheck = true)(
       Core.resolveNameClashes,
       Core.anf,
-      Core.simplify,
-      Comprehension.resugar(API.bagSymbol)
+      Core.simplify
+    ).compose(_.tree)
+
+  val resugar: Expr[Any] => Tree =
+    compiler.pipeline(typeCheck = true)(
+      Core.resolveNameClashes,
+      Core.anf,
+      Comprehension.resugar(API.bagSymbol),
+      Core.simplify
     ).compose(_.tree)
 
   val normalize: Expr[Any] => Tree =
@@ -361,6 +368,40 @@ class NormalizeSpec extends BaseCompilerSpec {
     (inp, exp)
   }
 
+  val (inp9, exp9) = {
+
+    val inp = reify {
+      val xs = for {
+        Ad(id, name, _) <- ads
+        token <- DataBag(name.split("\\s+"))
+      } yield token
+      xs.fetch()
+    }
+
+    val exp = reify {
+      val ads$1 = ads;
+      val xs = comprehension[String, DataBag]({
+        val ad$1 = generator[Ad, DataBag]({
+          ads$1
+        });
+        val token = generator[String, DataBag]({
+          val x$5: Ad = ad$1: Ad@unchecked;
+          val x$6 = x$5.name
+          val x$7 = x$6.split("\\s+")
+          val x$8 = wrapRefArray[String](x$7)
+          val x$9 = DataBag(x$8)
+          x$9
+        })
+        head[String]({
+          token
+        })
+      })
+      xs.fetch()
+    }
+
+    (inp, exp)
+  }
+
   // ---------------------------------------------------------------------------
   // Spec tests
   // ---------------------------------------------------------------------------
@@ -379,19 +420,22 @@ class NormalizeSpec extends BaseCompilerSpec {
 
   "normalize resugared comprehensions" - {
     "with three generators and two filters at the end" in {
-      normalize(inp4) shouldBe alphaEqTo(anf(exp4))
+      normalize(inp4) shouldBe alphaEqTo(resugar(exp4))
     }
     "with three generators and two interleaved filters" in {
-      normalize(inp5) shouldBe alphaEqTo(anf(exp5))
+      normalize(inp5) shouldBe alphaEqTo(resugar(exp5))
     }
     "with one patmat generator and no filters" in {
-      normalize(inp6) shouldBe alphaEqTo(anf(exp6))
+      normalize(inp6) shouldBe alphaEqTo(resugar(exp6))
     }
     "with two patmat generators and one filter (at the end)" in {
-      normalize(inp7) shouldBe alphaEqTo(anf(exp7))
+      normalize(inp7) shouldBe alphaEqTo(resugar(exp7))
     }
     "with two patmat generators and one filter (itermediate result)" in {
-      normalize(inp8) shouldBe anf(exp8)
+      normalize(inp8) shouldBe alphaEqTo(resugar(exp8))
+    }
+    "with two correlated generators and no filters" in {
+      normalize(inp9) shouldBe alphaEqTo(resugar(exp9))
     }
   }
 }

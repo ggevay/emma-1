@@ -244,14 +244,16 @@ private[comprehension] trait Normalize extends Common
 
       private def prepend(prefix: Seq[u.ValDef], blck: u.Block): u.Block = blck match {
         case core.Let(vals, defs, effs, expr) =>
-          val prefixSyms = prefix collect {
-            case core.ValDef(sym, _, _) => sym
+          val fresh = for (core.ValDef(sym, rhs, flags) <- prefix) yield {
+            core.ValDef(api.TermSym.fresh(sym), rhs, flags)
           }
 
-          api.Tree.refresh(
-            prefixSyms: _*
-          )(
-            core.Let(prefix ++ vals: _*)(defs: _*)(effs: _*)(expr)
+          val aliases = for {
+            (core.ValDef(from, _, _), core.ValDef(to, _, _)) <- prefix zip fresh
+          } yield from -> to
+
+          (api.Tree.rename(aliases: _*) andThen { Core.simplify _ })(
+            core.Let(fresh ++ vals: _*)(defs: _*)(effs: _*)(expr)
           ).asInstanceOf[u.Block]
       }
     }
