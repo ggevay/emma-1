@@ -44,41 +44,41 @@ private[comprehension] trait ReDeSugar extends Common {
       }
 
       val transform = api.TopDown.transform {
-        case cs.map(xs, Lookup(core.Lambda(_, arg :: Nil, body))) =>
+        case cs.Map(xs, Lookup(core.Lambda(_, arg :: Nil, body))) =>
           // FIXME: is there a cheap way to avoid mutability?
           val sym = api.Sym.of(arg).asTerm // API: get term sym directly
           resetFlags(sym, u.Flag.PARAM)
           setFlags(sym, u.Flag.SYNTHETIC)
 
-          cs.comprehension(
+          cs.Comprehension(
             Seq(
-              cs.generator(sym, asLet(xs))),
-            cs.head(asLet(body)))
+              cs.Generator(sym, asLet(xs))),
+            cs.Head(asLet(body)))
 
-        case cs.flatMap(xs, Lookup(core.Lambda(_, arg :: Nil, body))) =>
+        case cs.FlatMap(xs, Lookup(core.Lambda(_, arg :: Nil, body))) =>
           // FIXME: is there a cheap way to avoid mutability?
           val sym = api.Sym.of(arg).asTerm // API: get term sym directly
           resetFlags(sym, u.Flag.PARAM)
           setFlags(sym, u.Flag.SYNTHETIC)
 
-          cs.flatten(
+          cs.Flatten(
             core.Let()()()(
-              cs.comprehension(
+              cs.Comprehension(
                 Seq(
-                  cs.generator(sym, asLet(xs))),
-                cs.head(asLet(body)))))
+                  cs.Generator(sym, asLet(xs))),
+                cs.Head(asLet(body)))))
 
-        case cs.withFilter(xs, Lookup(core.Lambda(_, arg :: Nil, body))) =>
+        case cs.WithFilter(xs, Lookup(core.Lambda(_, arg :: Nil, body))) =>
           // FIXME: is there a cheap way to avoid mutability?
           val sym = api.Sym.of(arg).asTerm // API: get term sym directly
           resetFlags(sym, u.Flag.PARAM)
           setFlags(sym, u.Flag.SYNTHETIC)
 
-          cs.comprehension(
+          cs.Comprehension(
             Seq(
-              cs.generator(sym, asLet(xs)),
-              cs.guard(asLet(body))),
-            cs.head(core.Let()()()(core.ValRef(sym))))
+              cs.Generator(sym, asLet(xs)),
+              cs.Guard(asLet(body))),
+            cs.Head(core.Let()()()(core.ValRef(sym))))
       }
 
       ({
@@ -132,10 +132,10 @@ private[comprehension] trait ReDeSugar extends Common {
 
           core.Let(uvals.result():_*)(defs:_*)(effs:_*)(uexpr)
 
-        case t@cs.comprehension(cs.generator(sym, core.Let(_, _, _, rhs)) :: qs, cs.head(expr)) =>
+        case t@cs.Comprehension(cs.Generator(sym, core.Let(_, _, _, rhs)) :: qs, cs.Head(expr)) =>
 
           val (guards, rest) = qs span {
-            case cs.guard(_) => true
+            case cs.Guard(_) => true
             case _ => false
           }
 
@@ -145,16 +145,16 @@ private[comprehension] trait ReDeSugar extends Common {
               // step (1) accumulate the result
               (_: List[u.Tree]).foldLeft(((api.Sym of rhs).asTerm, List.empty[u.ValDef]))((res, guard) => { // API
                 val (currSym, currPfx) = res
-                val cs.guard(expr) = guard
+                val cs.Guard(expr) = guard
 
                 val funcRhs = core.Lambda(sym)(expr)
                 val funcNme = api.TermName.fresh("guard")
                 val funcSym = api.TermSym.free(funcNme, funcRhs.tpe)
                 val funcVal = api.ValDef(funcSym, funcRhs)
 
-                val nextNme = api.TermName(cs.withFilter.symbol.name)
+                val nextNme = api.TermName(cs.WithFilter.symbol.name)
                 val nextSym = api.TermSym.free(nextNme, currSym.info)
-                val nextVal = api.ValDef(nextSym, cs.withFilter(core.BindingRef(currSym))(core.BindingRef(funcSym)))
+                val nextVal = api.ValDef(nextSym, cs.WithFilter(core.BindingRef(currSym))(core.BindingRef(funcSym)))
 
                 (nextSym, nextVal :: funcVal :: currPfx)
               })
@@ -177,13 +177,13 @@ private[comprehension] trait ReDeSugar extends Common {
 
               val (op: MonadOp, body: u.Tree) = rest match {
                 case Nil => (
-                  cs.map,
+                  cs.Map,
                   expr)
                 case _ => (
-                  cs.flatMap,
-                  cs.comprehension(
+                  cs.FlatMap,
+                  cs.Comprehension(
                     rest,
-                    cs.head(expr)))
+                    cs.Head(expr)))
               }
 
               val func = core.Lambda(sym)(body)
@@ -194,8 +194,8 @@ private[comprehension] trait ReDeSugar extends Common {
               )()()(op(core.BindingRef(tail))(core.BindingRef(term)))
           }
 
-        case t@cs.flatten(core.Let(vals, defs, effs, expr@cs.map(xs, fn))) =>
-          core.Let(vals:_*)(defs:_*)(effs:_*)(cs.flatMap(xs)(fn))
+        case t@cs.Flatten(core.Let(vals, defs, effs, expr@cs.Map(xs, fn))) =>
+          core.Let(vals:_*)(defs:_*)(effs:_*)(cs.FlatMap(xs)(fn))
       }
 
       transform(tree).tree

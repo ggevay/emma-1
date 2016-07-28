@@ -33,10 +33,10 @@ private[comprehension] trait Normalize extends Common
       } andThen {
         // elminiate trivial guards produced by normalization
         tree => api.BottomUp.transform {
-          case cs.comprehension(qs, hd) =>
-            cs.comprehension(
+          case cs.Comprehension(qs, hd) =>
+            cs.Comprehension(
               qs filterNot {
-                case t@cs.guard(core.Let(_, _, Nil, core.Lit(true))) => true
+                case t@cs.Guard(core.Let(_, _, Nil, core.Lit(true))) => true
                 case t => false
               }, hd)
         }(tree).tree
@@ -151,31 +151,31 @@ private[comprehension] trait Normalize extends Common
 
           vals1.map(x => x -> x.rhs) :+ (expr1 -> expr1) collectFirst {
             //@formatter:off
-            case (encl, flatten(
+            case (encl, Flatten(
               core.Let(
                 vals2,
                 Nil,
                 Nil,
-                expr2@comprehension(
+                expr2@Comprehension(
                   qs1,
-                  head(
+                  Head(
                     core.Let(
                       vals3,
                       Nil,
                       Nil,
-                      expr3@comprehension(
+                      expr3@Comprehension(
                         qs2,
-                        head(hd2)
+                        Head(hd2)
                       ))))))) =>
               //@formatter:on
 
               val (vals3i, vals3o) = split(vals3, qs1)
 
               val qs2p = qs2 map {
-                case generator(sym, rhs) =>
-                  generator(sym, prepend(vals3i, rhs))
-                case guard(pred) =>
-                  guard(prepend(vals3i, pred))
+                case Generator(sym, rhs) =>
+                  Generator(sym, prepend(vals3i, rhs))
+                case Guard(pred) =>
+                  Guard(prepend(vals3i, pred))
               }
 
               val hd2p = prepend(vals3i, hd2)
@@ -183,10 +183,10 @@ private[comprehension] trait Normalize extends Common
               val (vals, expr) = encl match {
                 case encl@core.ValDef(xsym, xrhs, xflags) =>
                   val (vals1a, vals1b) = splitAt(encl)(vals1)
-                  val val_ = core.ValDef(xsym, comprehension(qs1 ++ qs2p, head(hd2p)), xflags)
+                  val val_ = core.ValDef(xsym, Comprehension(qs1 ++ qs2p, Head(hd2p)), xflags)
                   (vals1a ++ vals2 ++ vals3o ++ Seq(val_) ++ vals1b, expr1)
                 case _ =>
-                  (vals1 ++ vals2 ++ vals3o, comprehension(qs1 ++ qs2p, head(hd2p)))
+                  (vals1 ++ vals2 ++ vals3o, Comprehension(qs1 ++ qs2p, Head(hd2p)))
               }
 
               // API: cumbersome syntax of Let.apply
@@ -207,7 +207,7 @@ private[comprehension] trait Normalize extends Common
 
         // symbols defined in qs
         val qs1Syms = (for {
-          generator(sym, _) <- qs
+          Generator(sym, _) <- qs
         } yield sym).toSet
 
         // symbols defined in vals3 which directly depend on symbols from qs1
@@ -352,13 +352,13 @@ private[comprehension] trait Normalize extends Common
           //@formatter:on
 
           (vals1 collectFirst {
-            case vd@core.ValDef(y, comprehension(qs2, head(hd2)), _) =>
+            case vd@core.ValDef(y, Comprehension(qs2, Head(hd2)), _) =>
               val (vals1a, vals1r) = splitAt(vd)(vals1)
               val encls = vals1r.map(x => x -> x.rhs) :+ (expr1 -> expr1)
               encls collectFirst {
-                case (encl, comprehension(qs1, head(hd1))) =>
+                case (encl, Comprehension(qs1, Head(hd1))) =>
                   qs1 collectFirst {
-                    case gen@generator(x, core.Let(Nil, Nil, Nil, core.ValRef(`y`))) =>
+                    case gen@Generator(x, core.Let(Nil, Nil, Nil, core.ValRef(`y`))) =>
 
                       // define a substitution function `· [ $hd2 \ x ]`
                       val subst = hd2 match {
@@ -369,9 +369,9 @@ private[comprehension] trait Normalize extends Common
                       // compute prefix and suffix for qs1 and vals1
                       val (qs1a, qs1b) = splitAt[u.Tree](gen)(qs1)
 
-                      val comp = comprehension(
+                      val comp = Comprehension(
                         qs1a ++ qs2 ++ (qs1b map subst),
-                        head(asLet(subst(hd1))))
+                        Head(asLet(subst(hd1))))
 
                       val (vals, expr) = encl match {
                         case encl@core.ValDef(zsym, zrhs, zflags) =>

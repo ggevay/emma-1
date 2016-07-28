@@ -8,8 +8,7 @@ trait Comprehension extends Common
   with Normalize {
   self: Core =>
 
-  import universe._
-  import Tree._
+  import UniverseImplicits._
   import Core.{Lang => core}
 
   private[emma] object Comprehension {
@@ -19,33 +18,37 @@ trait Comprehension extends Common
     // -------------------------------------------------------------------------
 
     trait MonadOp {
-      val symbol: TermSymbol
+      val symbol: u.TermSymbol
 
-      def apply(xs: Tree)(fn: Tree): Tree
+      def apply(xs: u.Tree)(fn: u.Tree): u.Tree
 
-      def unapply(tree: Tree): Option[(Tree, Tree)]
+      def unapply(tree: u.Tree): Option[(u.Tree, u.Tree)]
     }
 
-    class Syntax(val monad: Symbol) {
+    /**
+     * Contains objects that can be used to model comprehension syntax and monad operators as
+     * first class citizen.
+     */
+    class Syntax(val monad: u.Symbol) {
 
       //@formatter:off
       val monadTpe  = monad.asType.toType.typeConstructor
-      val moduleSel = resolve(IR.module) // API: how to rewrite?
+      val moduleSel = api.Tree.resolveStatic(IR.module)
       //@formatter:on
 
       // -----------------------------------------------------------------------
       // Monad Ops
       // -----------------------------------------------------------------------
 
-      object map extends MonadOp {
+      object Map extends MonadOp {
 
         override val symbol =
           api.Term.member(monad, api.TermName("map")).asMethod // API: access method directly
 
-        override def apply(xs: Tree)(f: Tree): Tree =
+        override def apply(xs: u.Tree)(f: u.Tree): u.Tree =
           core.DefCall(Some(xs))(symbol, elemTpe(f))(f :: Nil)
 
-        override def unapply(apply: Tree): Option[(Tree, Tree)] = apply match {
+        override def unapply(apply: u.Tree): Option[(u.Tree, u.Tree)] = apply match {
           case core.DefCall(Some(xs), `symbol`, _, Seq(f)) => Some(xs, f)
           case _ => None
         }
@@ -55,7 +58,7 @@ trait Comprehension extends Common
           api.Type.arg(2, api.Type.of(f))
       }
 
-      object flatMap extends MonadOp {
+      object FlatMap extends MonadOp {
 
         override val symbol =
           api.Term.member(monad, api.TermName("flatMap")).asMethod // API: access method directly
@@ -73,7 +76,7 @@ trait Comprehension extends Common
           api.Type.arg(1, api.Type.arg(2, api.Type.of(f)))
       }
 
-      object withFilter extends MonadOp {
+      object WithFilter extends MonadOp {
 
         override val symbol =
           api.Term.member(monad, api.TermName("withFilter")).asMethod // API: access method directly
@@ -92,13 +95,13 @@ trait Comprehension extends Common
       // -----------------------------------------------------------------------
 
       /** Con- and destructs a comprehension from/to a list of qualifiers `qs` and a head expression `hd`. */
-      object comprehension {
+      object Comprehension {
         val symbol = IR.comprehension
 
-        def apply(qs: Seq[Tree], hd: Tree): Tree =
+        def apply(qs: Seq[u.Tree], hd: u.Tree): u.Tree =
           core.DefCall(Some(moduleSel))(symbol, elemTpe(hd), monadTpe)(api.Block(qs:_*)(hd) :: Nil)
 
-        def unapply(tree: Tree): Option[(Seq[Tree], Tree)] = tree match {
+        def unapply(tree: u.Tree): Option[(Seq[u.Tree], u.Tree)] = tree match {
           case core.DefCall(_, `symbol`, _, api.Block(qs, hd) :: Nil) =>
             Some(qs, hd)
           case _ =>
@@ -111,7 +114,7 @@ trait Comprehension extends Common
       }
 
       /** Con- and destructs a generator from/to a [[Tree]]. */
-      object generator {
+      object Generator {
         val symbol = IR.generator
 
         def apply(lhs: u.TermSymbol, rhs: u.Block): u.Tree = core.ValDef(
@@ -131,7 +134,7 @@ trait Comprehension extends Common
       }
 
       /** Con- and destructs a guard from/to a [[Tree]]. */
-      object guard {
+      object Guard {
         val symbol = IR.guard
 
         def apply(expr: u.Block): u.Tree =
@@ -146,7 +149,7 @@ trait Comprehension extends Common
       }
 
       /** Con- and destructs a head from/to a [[Tree]]. */
-      object head {
+      object Head {
         val symbol = IR.head
 
         def apply(expr: u.Block): u.Tree =
@@ -165,7 +168,7 @@ trait Comprehension extends Common
       }
 
       /** Con- and destructs a flatten from/to a [[Tree]]. */
-      object flatten {
+      object Flatten {
         val symbol = IR.flatten
 
         def apply(expr: u.Block): u.Tree =
@@ -202,14 +205,14 @@ trait Comprehension extends Common
     // -------------------------------------------------------------------------
 
     /** Delegates to [[Normalize.normalize()]]. */
-    def normalize(monad: Symbol)(tree: Tree): Tree =
+    def normalize(monad: u.Symbol)(tree: u.Tree): u.Tree =
       Normalize.normalize(monad)(tree)
 
     // -------------------------------------------------------------------------
     // General helpers
     // -------------------------------------------------------------------------
 
-    def asLet(tree: Tree): Block = tree match {
+    def asLet(tree: u.Tree): u.Block = tree match {
       case let @ core.Let(_, _, _, _) => let
       case other => core.Let()()()(other)
     }
