@@ -62,7 +62,7 @@ private[comprehension] trait ReDeSugar extends Common {
           setFlags(sym, u.Flag.SYNTHETIC)
 
           cs.Flatten(
-            core.Let()()()(
+            core.Let()()(
               cs.Comprehension(
                 Seq(
                   cs.Generator(sym, asLet(xs))),
@@ -78,7 +78,7 @@ private[comprehension] trait ReDeSugar extends Common {
             Seq(
               cs.Generator(sym, asLet(xs)),
               cs.Guard(asLet(body))),
-            cs.Head(core.Let()()()(core.ValRef(sym))))
+            cs.Head(core.Let()()(core.ValRef(sym))))
       }
 
       ({
@@ -109,12 +109,12 @@ private[comprehension] trait ReDeSugar extends Common {
 
       val transform = api.BottomUp.transform {
 
-        case core.Let(vals, defs, effs, expr) =>
+        case core.Let(vals, defs, expr) =>
           val uvals = ListBuffer.empty[u.ValDef]
 
           // unnest potentially nested simple let blocks occurring on the rhs of parent vals
           vals foreach {
-            case core.ValDef(sym, core.Let(nvals, Nil, Nil, nexpr), flags) =>
+            case core.ValDef(sym, core.Let(nvals, Nil, nexpr), flags) =>
               uvals ++= nvals
               uvals += core.ValDef(sym, nexpr, flags)
             case val_ =>
@@ -123,16 +123,16 @@ private[comprehension] trait ReDeSugar extends Common {
 
           // unnest potentially nested simple let blocks occurring on the parent expr
           val uexpr = expr match {
-            case core.Let(nvals, Nil, Nil, nexpr) =>
+            case core.Let(nvals, Nil, nexpr) =>
               uvals ++= nvals
               nexpr
             case _ =>
               expr
           }
 
-          core.Let(uvals.result():_*)(defs:_*)(effs:_*)(uexpr)
+          core.Let(uvals.result():_*)(defs:_*)(uexpr)
 
-        case t@cs.Comprehension(cs.Generator(sym, core.Let(_, _, _, rhs)) :: qs, cs.Head(expr)) =>
+        case t@cs.Comprehension(cs.Generator(sym, core.Let(_, _, rhs)) :: qs, cs.Head(expr)) =>
 
           val (guards, rest) = qs span {
             case cs.Guard(_) => true
@@ -165,11 +165,11 @@ private[comprehension] trait ReDeSugar extends Common {
           }
 
           expr match {
-            case core.Let(Nil, Nil, Nil, core.BindingRef(`sym`)) =>
+            case core.Let(Nil, Nil, core.BindingRef(`sym`)) =>
               // trivial head expression consisting of the matched sym 'x'
               // omit the resulting trivial mapper
 
-              Core.simplify(core.Let(prefix: _*)()()(core.BindingRef(tail)))
+              Core.simplify(core.Let(prefix: _*)()(core.BindingRef(tail)))
 
             case _ =>
               // append a map or a flatMap to the result depending on
@@ -191,11 +191,11 @@ private[comprehension] trait ReDeSugar extends Common {
 
               core.Let(
                 prefix :+ core.ValDef(term, func):_*
-              )()()(op(core.BindingRef(tail))(core.BindingRef(term)))
+              )()(op(core.BindingRef(tail))(core.BindingRef(term)))
           }
 
-        case t@cs.Flatten(core.Let(vals, defs, effs, expr@cs.Map(xs, fn))) =>
-          core.Let(vals:_*)(defs:_*)(effs:_*)(cs.FlatMap(xs)(fn))
+        case t@cs.Flatten(core.Let(vals, defs, expr@cs.Map(xs, fn))) =>
+          core.Let(vals:_*)(defs:_*)(cs.FlatMap(xs)(fn))
       }
 
       transform(tree).tree

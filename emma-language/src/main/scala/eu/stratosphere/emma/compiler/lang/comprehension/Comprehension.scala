@@ -213,8 +213,8 @@ trait Comprehension extends Common
     // -------------------------------------------------------------------------
 
     def asLet(tree: u.Tree): u.Block = tree match {
-      case let @ core.Let(_, _, _, _) => let
-      case other => core.Let()()()(other)
+      case let @ core.Let(_, _, _) => let
+      case other => core.Let()()(other)
     }
   }
 

@@ -36,7 +36,7 @@ private[comprehension] trait Normalize extends Common
           case cs.Comprehension(qs, hd) =>
             cs.Comprehension(
               qs filterNot {
-                case t@cs.Guard(core.Let(_, _, Nil, core.Lit(true))) => true
+                case t@cs.Guard(core.Let(_, _, core.Lit(true))) => true
                 case t => false
               }, hd)
         }(tree).tree
@@ -145,7 +145,6 @@ private[comprehension] trait Normalize extends Common
         case core.Let(
           vals1,
           defs1,
-          effs1,
           expr1) =>
           //@formatter:on
 
@@ -155,13 +154,11 @@ private[comprehension] trait Normalize extends Common
               core.Let(
                 vals2,
                 Nil,
-                Nil,
                 expr2@Comprehension(
                   qs1,
                   Head(
                     core.Let(
                       vals3,
-                      Nil,
                       Nil,
                       expr3@Comprehension(
                         qs2,
@@ -190,7 +187,7 @@ private[comprehension] trait Normalize extends Common
               }
 
               // API: cumbersome syntax of Let.apply
-              core.Let(vals: _*)(defs1: _*)(effs1: _*)(expr)
+              core.Let(vals: _*)(defs1: _*)(expr)
           }
 
         case _ =>
@@ -243,7 +240,7 @@ private[comprehension] trait Normalize extends Common
       }
 
       private def prepend(prefix: Seq[u.ValDef], blck: u.Block): u.Block = blck match {
-        case core.Let(vals, defs, effs, expr) =>
+        case core.Let(vals, defs, expr) =>
           val fresh = for (core.ValDef(sym, rhs, flags) <- prefix) yield {
             core.ValDef(api.TermSym.fresh(sym), rhs, flags)
           }
@@ -253,7 +250,7 @@ private[comprehension] trait Normalize extends Common
           } yield from -> to
 
           (api.Tree.rename(aliases: _*) andThen { Core.simplify _ })(
-            core.Let(fresh ++ vals: _*)(defs: _*)(effs: _*)(expr)
+            core.Let(fresh ++ vals: _*)(defs: _*)(expr)
           ).asInstanceOf[u.Block]
       }
     }
@@ -347,7 +344,6 @@ private[comprehension] trait Normalize extends Common
         case core.Let(
           vals1,
           defs1,
-          effs1,
           expr1) =>
           //@formatter:on
 
@@ -358,11 +354,11 @@ private[comprehension] trait Normalize extends Common
               encls collectFirst {
                 case (encl, Comprehension(qs1, Head(hd1))) =>
                   qs1 collectFirst {
-                    case gen@Generator(x, core.Let(Nil, Nil, Nil, core.ValRef(`y`))) =>
+                    case gen@Generator(x, core.Let(Nil, Nil, core.ValRef(`y`))) =>
 
                       // define a substitution function `· [ $hd2 \ x ]`
                       val subst = hd2 match {
-                        case core.Let(Nil, Nil, Nil, expr2) => api.Tree.subst(x -> expr2)
+                        case core.Let(Nil, Nil, expr2) => api.Tree.subst(x -> expr2)
                         case _ => api.Tree.subst(x -> hd2)
                       }
 
@@ -383,7 +379,7 @@ private[comprehension] trait Normalize extends Common
                       }
 
                       // API: cumbersome syntax of Let.apply
-                      core.Let(vals: _*)(defs1: _*)(effs1: _*)(expr)
+                      core.Let(vals: _*)(defs1: _*)(expr)
                   }
               }
           }).flatten.flatten
