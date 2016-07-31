@@ -1,9 +1,9 @@
-package eu.stratosphere
-package emma.compiler
-package lang.core
+package eu.stratosphere.emma
+package compiler.lang.core
 
-import emma.util.Monoids
-import lang.source.Source
+import compiler.lang.source.Source
+import compiler.Common
+import util.Monoids
 
 import shapeless._
 
@@ -13,7 +13,6 @@ import scala.annotation.tailrec
 private[core] trait ANF extends Common {
   this: Source with Core =>
 
-  import universe._
   import Core.{Lang => core}
   import Source.{Lang => src}
 

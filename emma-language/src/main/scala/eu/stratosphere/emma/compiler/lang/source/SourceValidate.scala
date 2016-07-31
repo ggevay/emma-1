@@ -1,13 +1,12 @@
-package eu.stratosphere
-package emma.compiler
-package lang
-package source
+package eu.stratosphere.emma
+package compiler.lang.source
+
+import compiler.Common
 
 /** Validation for the [[Source]] language. */
 private[source] trait SourceValidate extends Common {
   self: Source =>
 
-  import universe._
   import Validation._
   import Source.{Lang => src}
 
