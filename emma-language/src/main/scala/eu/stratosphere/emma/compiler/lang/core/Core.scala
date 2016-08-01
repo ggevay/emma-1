@@ -17,6 +17,8 @@ trait Core extends Common
   with Comprehension {
   this: Source =>
 
+  import UniverseImplicits._
+
   /** Core language. */
   object Core {
 

@@ -8,6 +8,7 @@ private[source] trait SourceValidate extends Common {
   self: Source =>
 
   import Validation._
+  import UniverseImplicits._
   import Source.{Lang => src}
 
   /** Validation for the [[Source]] language. */

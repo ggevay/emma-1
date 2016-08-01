@@ -13,6 +13,7 @@ import scala.annotation.tailrec
 private[core] trait ANF extends Common {
   this: Source with Core =>
 
+  import UniverseImplicits._
   import Core.{Lang => core}
   import Source.{Lang => src}
 
