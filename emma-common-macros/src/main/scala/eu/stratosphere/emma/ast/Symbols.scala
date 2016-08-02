@@ -181,6 +181,12 @@ trait Symbols { this: AST =>
 
     /** Extractor that substitutes undefined symbols with te enclosing owner. */
     object Encl extends Node {
+
+      /** Returns `owner` if it is defined, the enclosing owner otherwise. */
+      def apply(owner: u.Symbol): u.Symbol =
+        if (is.defined(owner)) owner
+        else get.enclosingOwner
+
       def unapply(owner: u.Symbol): Option[u.Symbol] =
         Some(if (is.defined(owner)) owner else get.enclosingOwner)
     }

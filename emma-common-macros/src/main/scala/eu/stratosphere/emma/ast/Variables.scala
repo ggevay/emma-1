@@ -66,32 +66,6 @@ trait Variables { this: AST =>
       }
     }
 
-    /**
-     * Variable (`var`) accesses.
-     *
-     * NOTE: All variables except fields with `private[this]` visibility are accessed via getter
-     * methods (thus covered by [[DefCall]]).
-     */
-    private[ast] object VarAcc extends Node {
-
-      /**
-       * Creates a type-checked variable access.
-       * @param target Must be a term.
-       * @param member Must be a variable symbol.
-       * @return `target.member`.
-       */
-      def apply(target: u.Tree, member: u.TermSymbol): u.Select = {
-        assert(is.defined(member), s"$this member `$member` is not defined")
-        assert(is.variable(member), s"$this member `$member` is not a variable")
-        BindingAcc(target, member)
-      }
-
-      def unapply(acc: u.Select): Option[(u.Tree, u.TermSymbol)] = acc match {
-        case BindingAcc(target, VarSym(member)) => Some(target, member)
-        case _ => None
-      }
-    }
-
     /** Variable (`var`) definitions. */
     object VarDef extends Node {
 

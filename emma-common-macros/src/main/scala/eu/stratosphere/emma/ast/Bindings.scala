@@ -68,37 +68,6 @@ trait Bindings { this: AST =>
       }
     }
 
-    /**
-     * Binding accesses (values, variables and parameters).
-     *
-     * NOTE: All bindings except fields with `private[this]` visibility are accessed via getter
-     * methods (thus covered by [[DefCall]]).
-     */
-    private[ast] object BindingAcc extends Node {
-
-      /**
-       * Creates a type-checked binding access.
-       * @param target Must be a term.
-       * @param member Must be a dynamic binding symbol.
-       * @return `target.member`.
-       */
-      def apply(target: u.Tree, member: u.TermSymbol): u.Select = {
-        assert(is.defined(member), s"$this member `$member` is not defined")
-        assert(is.binding(member), s"$this member `$member` is not a binding")
-        val getter = member.getter
-        assert(is.defined(getter), s"$this member `$member` has no getter")
-        assert(is.method(getter), s"$this getter `$getter` is not a method")
-        DefCall(Some(target))(getter.asMethod)().asInstanceOf[u.Select]
-      }
-
-      def unapply(acc: u.Select): Option[(u.Tree, u.TermSymbol)] = acc match {
-        case DefCall(Some(target), getter, Seq())
-          if is.defined(getter.accessed) && is.binding(getter.accessed)
-          => Some(target, getter.accessed.asTerm)
-        case _ => None
-      }
-    }
-
     /** Binding definitions (values, variables and parameters). */
     object BindingDef extends Node {
 
@@ -127,7 +96,7 @@ trait Bindings { this: AST =>
           lazy val rhT = Type.of(rhs)
           assert(rhT weak_<:< lhT, s"$this LH type `$lhT` is not a supertype of RH type `$rhT`")
           Owner.at(lhs)(rhs)
-        } else u.EmptyTree
+        } else Tree.empty
 
         val tpt = TypeQuote(lhT)
         val bind = u.ValDef(mods, name, tpt, body)

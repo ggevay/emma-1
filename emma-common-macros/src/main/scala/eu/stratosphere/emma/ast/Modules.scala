@@ -38,18 +38,6 @@ trait Modules { this: AST =>
 
       def unapply(sym: u.ModuleSymbol): Option[u.ModuleSymbol] =
         Option(sym)
-
-      /** Extractor for dynamic module symbols (local and class members). */
-      object Dynamic {
-        def unapply(sym: u.ModuleSymbol): Option[u.ModuleSymbol] =
-          Option(sym).filterNot(_.isStatic)
-      }
-
-      /** Extractor for static module symbols (object and package object members). */
-      object Static {
-        def unapply(sym: u.ModuleSymbol): Option[u.ModuleSymbol] =
-          Option(sym).filter(_.isStatic)
-      }
     }
 
     /** Module (`object`) references. */
@@ -66,46 +54,6 @@ trait Modules { this: AST =>
       def unapply(ref: u.Ident): Option[u.ModuleSymbol] = ref match {
         case TermRef(ModuleSym(target)) => Some(target)
         case _ => None
-      }
-
-      /** Dynamic module references (local and class members). */
-      object Dynamic extends Node {
-
-        /**
-         * Creates a type-checked dynamic module reference.
-         * @param target Must be a dynamic module symbol.
-         * @return `target`.
-         */
-        def apply(target: u.ModuleSymbol): u.Ident = {
-          assert(is.defined(target), s"$this target `$target` is not defined")
-          assert(!target.isStatic, s"$this target `$target` cannot be static")
-          ModuleRef(target)
-        }
-
-        def unapply(ref: u.Ident): Option[u.ModuleSymbol] = ref match {
-          case ModuleRef(ModuleSym.Dynamic(target)) => Some(target)
-          case _ => None
-        }
-      }
-
-      /** Static module references (top-level / object or package object members). */
-      object Static extends Node {
-
-        /**
-         * Creates a type-checked static module reference.
-         * @param target Must be a static module symbol.
-         * @return `target`.
-         */
-        def apply(target: u.ModuleSymbol): u.Ident = {
-          assert(is.defined(target), s"$this target `$target` is not defined")
-          assert(target.isStatic, s"$this target `$target` is not static")
-          ModuleRef(target)
-        }
-
-        def unapply(ref: u.Ident): Option[u.ModuleSymbol] = ref match {
-          case ModuleRef(ModuleSym.Static(target)) => Some(target)
-          case _ => None
-        }
       }
     }
 

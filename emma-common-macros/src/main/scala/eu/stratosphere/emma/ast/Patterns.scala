@@ -62,7 +62,7 @@ trait Patterns { this: AST =>
        * @return `case pattern => body`.
        */
       def apply(pat: u.Tree, body: u.Tree): u.CaseDef =
-        apply(pat, u.EmptyTree, body)
+        apply(pat, Tree.empty, body)
 
       /**
        * Creates a type-checked `case` definition with a guard.

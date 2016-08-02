@@ -312,6 +312,7 @@ trait CommonAST extends ReflectUtil {
       case (_: Ident) withSym sym withType tpe => is.term(sym) && is.result(tpe)
       case (_: Select) withSym sym withType tpe => is.tpe(sym) && is.result(tpe)
       case (_: Apply) withType tpe => is.result(tpe)
+      case _: Alternative => true
       case _: Bind => true
       case _: Typed => true
       case _ => false

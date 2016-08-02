@@ -69,32 +69,6 @@ trait Values { this: AST =>
       }
     }
 
-    /**
-     * Value (`val`) accesses.
-     *
-     * NOTE: All values except fields with `private[this]` visibility are accessed via getter
-     * methods (thus covered by [[DefCall]]).
-     */
-    private[ast] object ValAcc extends Node {
-
-      /**
-       * Creates a type-checked value access.
-       * @param target Must be a term.
-       * @param member Must be a dynamic value symbol.
-       * @return `target.member`.
-       */
-      def apply(target: u.Tree, member: u.TermSymbol): u.Select = {
-        assert(is.defined(member), s"$this member `$member` is not defined")
-        assert(is.value(member), s"$this member `$member` is not a value")
-        BindingAcc(target, member)
-      }
-
-      def unapply(acc: u.Select): Option[(u.Tree, u.TermSymbol)] = acc match {
-        case BindingAcc(target, ValSym(member)) => Some(target, member)
-        case _ => None
-      }
-    }
-
     /** Value (`val`) definitions. */
     object ValDef extends Node {
 
