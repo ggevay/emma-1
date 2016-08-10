@@ -365,10 +365,10 @@ trait Transducers { this: AST =>
 
       /** Bottom-up continue traversal. */
       override def traversal[A <: HList, I <: HList, S <: HList]
-        (atgrammarr: AttrGrammar[A, I, S])
+        (grammar: AttrGrammar[A, I, S])
         (callback: Attr[A, I, S] =?> Any)
         : Traversal[A, I, S]
-        = Traversal.bottomUp(atgrammarr)(callback)
+        = Traversal.bottomUp(grammar)(callback)
 
       /** Bottom-up continue transformation. */
       override def transform[A <: HList, I <: HList, S <: HList]
