@@ -1,7 +1,7 @@
 package eu.stratosphere
 package emma.ast
 
-/** * Methods (`def`s). */
+/** Methods (`def`s). */
 trait Methods { this: AST =>
 
   /**
@@ -83,13 +83,13 @@ trait Methods { this: AST =>
       /**
        * Creates a type-checked method call
        * @param target The (optional) target (must be a term if any).
-       * @param method Must be a method symbol.
+       * @param method Must be a method symbol or an overloaded symbol.
        * @param targs The type arguments (if the method is generic).
        * @param argss All argument lists (partial application not supported).
        * @return `[target.]method[..targs](...argss)`.
        */
       def apply(target: Option[u.Tree] = None)
-        (method: u.MethodSymbol, targs: u.Type*)
+        (method: u.TermSymbol, targs: u.Type*)
         (argss: Seq[u.Tree]*): u.Tree = target match {
 
         case Some(tgt) =>
