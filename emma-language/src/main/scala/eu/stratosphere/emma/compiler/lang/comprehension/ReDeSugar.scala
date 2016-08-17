@@ -96,7 +96,7 @@ private[comprehension] trait ReDeSugar extends Common {
      *
      * == Postconditions ==
      *
-     * - A tree where mock-comprehensions are desugared into comprehension operator calls.
+     * - An ANF tree where mock-comprehensions are desugared into comprehension operator calls.
      *
      * @param monad The symbol of the monad syntax to be desugared.
      * @return A desugaring transformation for that particular monad.

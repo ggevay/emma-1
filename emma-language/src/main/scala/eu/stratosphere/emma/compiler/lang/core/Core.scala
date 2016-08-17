@@ -354,6 +354,17 @@ trait Core extends Common
         uses(sym)
     }
 
+    // -------------------------------------------------------------------------
+    // Miscellaneous utilities
+    // -------------------------------------------------------------------------
+
+    /**
+     * Gets the type argument of the DataBag type that is the type of the given expression.
+     */
+    def bagElemTpe(xs: u.Tree): u.Type = {
+      assert(xs.tpe.typeConstructor == API.DATA_BAG)
+      api.Type.arg(1, xs.tpe)
+    }
   }
 
 }
