@@ -254,6 +254,40 @@ class ReDeSugarSpec extends BaseCompilerSpec {
     (des, res)
   }
 
+  // Not combinable
+  val (des7, res7) = {
+
+    // [[ (x,y) | x ← xs, y ← f x ]]
+    // xs.flatMap(x => (f x).map(y => (x,y)))
+
+    val xs = DataBag(Seq(1,2))
+
+    val des = reify {
+      val ir = xs
+        .flatMap(x => DataBag(Seq(x,x))
+          .map(y => (x,y)))
+      ir
+    }
+
+    val res = reify {
+      val ir = comprehension[(Int, Int), DataBag] {
+        val x = generator(xs)
+        val y = generator[Int, DataBag] {
+          val xx = Seq(x,x)
+          val db = DataBag(xx)
+          db
+        }
+        head {
+          val ir2 = (x, y)
+          ir2
+        }
+      }
+      ir
+    }
+
+    (des, res)
+  }
+
   // ---------------------------------------------------------------------------
   // Spec tests
   // ---------------------------------------------------------------------------
@@ -280,6 +314,12 @@ class ReDeSugarSpec extends BaseCompilerSpec {
         resugar(des6) shouldBe alphaEqTo(anf(res6))
       }
     }
+    "not combinable" in {
+      // This direction also fails, but the way it resugars this is actually OK, just different.
+      println(Core.prettyPrint(resugar(des7)))
+      println(Core.prettyPrint(anf(res7)))
+      resugar(des7) shouldBe alphaEqTo(anf(res7))
+    }
   }
 
   "desugar" - {
@@ -303,6 +343,11 @@ class ReDeSugarSpec extends BaseCompilerSpec {
       "with three generators and one filter" in {
         desugar(res6) shouldBe alphaEqTo(anf(des6))
       }
+    }
+    "not combinable" in {
+      println(Core.prettyPrint(desugar(res7)))
+      println(Core.prettyPrint(anf(des7)))
+      desugar(res7) shouldBe alphaEqTo(anf(des7))
     }
   }
 }
