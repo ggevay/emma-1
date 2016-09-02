@@ -14,7 +14,8 @@ trait Core extends Common
   with DSCF
   with Pickling
   with CoreValidate
-  with Comprehension {
+  with Comprehension
+  with Order {
   this: AlphaEq with Source =>
 
   import UniverseImplicits._
