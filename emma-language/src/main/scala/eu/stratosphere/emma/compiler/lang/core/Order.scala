@@ -71,14 +71,24 @@ private[core] trait Order extends Common {
         case api.ValDef(sym, _, _) if isFun(sym) => sym
       }.toSet
 
-      val Attr.all(_, topLevRefs :: combRefs :: _, _, (_, funGraph) :: _) =
+      val Attr.all(_, topLevRefs :: combRefs :: _, _, funGraph :: _) =
         api.TopDown
-        // funGraph (the second element of the tuple is the graph, the first is just auxiliary data)
-        .synthesizeWith[(Vector[u.TermSymbol], Map[u.TermSymbol, Set[u.TermSymbol]])] {
-          case Attr.none(api.ValRef(sym)) if funs contains sym =>
-            (Vector(sym), Map())
-          case Attr(api.ValDef(sym, rhs, _), _, _, syn) if isFun(sym) =>
-            (Vector(), Map(sym -> syn(rhs).head._1.toSet))
+//        // funGraph (the second element of the tuple is the graph, the first is just auxiliary data)
+//        .synthesizeWith[(Vector[u.TermSymbol], Map[u.TermSymbol, Set[u.TermSymbol]])] {
+//          case Attr.none(api.ValRef(sym)) if funs contains sym =>
+//            (Vector(sym), Map())
+//          case Attr(api.ValDef(sym, rhs, _), _, _, syn) if isFun(sym) =>
+//            (Vector(), Map(sym -> syn(rhs).head._1.toSet))
+//        }
+        // Lambda Refs (lambdaGraph)
+        .synthesize(Attr.collect[Vector, u.TermSymbol]{
+          case api.ValRef(sym) if funs contains sym =>
+            sym
+        })
+        // Lambda Ref graph Map
+        .synthesizeWith[Map[u.TermSymbol, Set[u.TermSymbol]]] {
+          case Attr.syn(api.ValDef(sym, rhs, _), _ :: funRefs :: _) if isFun(sym) =>
+            Map(sym -> funRefs.toSet)
         }
         // Am I inside a lambda?
         .inherit {
