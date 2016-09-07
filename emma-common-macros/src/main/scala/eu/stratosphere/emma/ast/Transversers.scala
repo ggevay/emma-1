@@ -10,6 +10,7 @@ import cats.std.all._
 import cats.syntax.group._
 import shapeless._
 
+import scala.Function.const
 import scala.annotation.tailrec
 import scala.collection.generic.CanBuildFrom
 import scala.collection.mutable
@@ -33,9 +34,9 @@ trait Transversers { this: AST =>
    * @tparam Syn The types of synthesized attributes.
    */
   case class AttrGrammar[Acc <: HList, Inh <: HList, Syn <: HList](
-      accumulation: Attr[Acc,  Inh,  Syn] =?> Acc = PartialFunction.empty,
-      inheritance:  Attr[HNil, Inh,  Syn] =?> Inh = PartialFunction.empty,
-      synthesis:    Attr[HNil, HNil, Syn] =?> Syn = PartialFunction.empty
+      accumulation: Attr[Acc,  Inh,  Syn] => Acc,
+      inheritance:  Attr[HNil, Inh,  Syn] => Inh,
+      synthesis:    Attr[HNil, HNil, Syn] => Syn
   )(implicit
     val MAcc: Monoid[Acc],
     val MInh: Monoid[Inh],
@@ -43,36 +44,36 @@ trait Transversers { this: AST =>
   ) {
 
     /** Prepends an accumulated (along the traversal path) attribute. */
-    def accumulate[X](acc: Attr[X :: Acc, Inh, Syn] =?> X)(implicit M: Monoid[X]) =
-      copy[X :: Acc, Inh, Syn](
-        accumulation = { case attr @ Attr(t, _ :: a, i, s)
-          if accumulation.isDefinedAt(Attr(t, a, i, s)) || acc.isDefinedAt(attr) =>
-            complete(acc)(attr)(M.empty) :: complete(accumulation)(Attr(t, a, i, s))(MAcc.empty)
+    def accumulate[A](acc: Attr[A :: Acc, Inh, Syn] =?> A)(implicit M: Monoid[A]) =
+      copy[A :: Acc, Inh, Syn](
+        accumulation = { case attr @ Attr.acc(_, a :: prev) =>
+          val curr = accumulation(attr.copy(acc = prev))
+          complete(acc)(attr.copy(acc = a :: curr))(M.empty) :: curr
       })
 
     /** Prepends an inherited (from parents) attribute. */
-    def inherit[X](inh: Attr[HNil, X :: Inh, Syn] =?> X)(implicit M: Monoid[X]) =
-      copy[Acc, X :: Inh, Syn](
-        accumulation = { case Attr(t, a, _ :: i, s)
-          if accumulation.isDefinedAt(Attr(t, a, i, s)) =>
-            accumulation(Attr(t, a, i, s))
-        }, inheritance = { case attr @ Attr(t, _, _ :: i, s)
-          if inheritance.isDefinedAt(Attr(t, i, s)) || inh.isDefinedAt(attr) =>
-            complete(inh)(attr)(M.empty) :: complete(inheritance)(Attr(t, i, s))(MInh.empty)
+    def inherit[I](inh: Attr[HNil, I :: Inh, Syn] =?> I)(implicit M: Monoid[I]) =
+      copy[Acc, I :: Inh, Syn](
+        accumulation = { case attr @ Attr.inh(_, _ :: prev) =>
+          accumulation(attr.copy(inh = prev))
+        }, inheritance = { case attr @ Attr.inh(_, i :: prev) =>
+          val curr = inheritance(attr.copy(inh = prev))
+          complete(inh)(attr.copy(inh = i :: curr))(M.empty) :: curr
         })
 
     /** Prepends a synthesized (from children) attribute. */
-    def synthesize[X](syn: Attr[HNil, HNil, X :: Syn] =?> X)(implicit M: Monoid[X]) = {
-      copy[Acc, Inh, X :: Syn](
-        accumulation = { case Attr(t, a, i, s)
-          if accumulation.isDefinedAt(Attr(t, a, i, tail(s))) =>
-            accumulation(Attr(t, a, i, tail(s)))
-        }, inheritance = { case attr @ Attr(t, _, i, s)
-          if inheritance.isDefinedAt(Attr(t, i, tail(s))) =>
-            inheritance(Attr(t, i, tail(s)))
-        }, synthesis = { case attr @ Attr(t, _, _, s)
-          if synthesis.isDefinedAt(Attr(t, tail(s))) || syn.isDefinedAt(attr) =>
-            complete(syn)(attr)(M.empty) :: complete(synthesis)(Attr(t, tail(s)))(MSyn.empty)
+    def synthesize[S](syn: Attr[HNil, HNil, S :: Syn] =?> S)(implicit M: Monoid[S]) = {
+      copy[Acc, Inh, S :: Syn](
+        accumulation = { case attr @ Attr(_, _, _, s) =>
+          accumulation(attr.copy(synthesis = tail(s)))
+        }, inheritance = { case attr @ Attr(_, _, _, s) =>
+          inheritance(attr.copy(synthesis = tail(s)))
+        }, synthesis = { case attr @ Attr(t, _, _, s) =>
+          val curr = synthesis(attr.copy(synthesis = tail(s)))
+          complete(syn)(attr.copy(synthesis = {
+            case `t` => s(t).head :: curr
+            case tree => s(tree)
+          }))(M.empty) :: curr
         })
     }
   }
@@ -106,7 +107,8 @@ trait Transversers { this: AST =>
     /** A function from tree to synthesized attributes. */
     private lazy val syn: Tree => Syn = Memo.recur[Tree, Syn]({ syn => tree =>
       val prev = tree.children.map(syn).foldLeft(MSyn.empty)(MSyn.combine)
-      val curr = complete(grammar.synthesis)(Attr(tree, syn))(MSyn.empty)
+      cache.put(tree, prev)
+      val curr = grammar.synthesis(Attr(tree, syn))
       MSyn.combine(prev, curr)
     }, cache)
 
@@ -114,15 +116,11 @@ trait Transversers { this: AST =>
     protected final def ann(tree: Tree): Attr[Acc, Inh, Syn] =
       Attr(tree, acc, inh, syn)
 
-    protected final lazy val accumulation: Tree =?> Acc = {
-      case tree if grammar.accumulation.isDefinedAt(ann(tree)) =>
-        grammar.accumulation(ann(tree))
-    }
+    protected final lazy val accumulation: Tree => Acc =
+      grammar.accumulation.compose(ann)
 
-    protected final lazy val inheritance: Tree =?> Inh = {
-      case tree if grammar.inheritance.isDefinedAt(Attr(tree, inh, syn)) =>
-        grammar.inheritance(Attr(tree, inh, syn))
-    }
+    protected final lazy val inheritance: Tree => Inh =
+      grammar.inheritance.compose(Attr(_, inh, syn))
 
     protected final lazy val traversal: Tree =?> Unit = {
       case tree if callback.isDefinedAt(ann(tree)) =>
@@ -135,19 +133,16 @@ trait Transversers { this: AST =>
     }
 
     /** Inherit attributes for `tree`. */
-    protected final def at[A](tree: Tree)(f: => A): A =
-      if (inheritance.isDefinedAt(tree)) {
-        stack ::= inh |+| inheritance(tree)
-        val result = f
-        stack = stack.tail
-        result
-      } else f
+    protected final def at[A](tree: Tree)(f: => A): A = {
+      stack ::= inh |+| inheritance(tree)
+      val result = f
+      stack = stack.tail
+      result
+    }
 
     /** Accumulate attributes for `tree`. */
     protected final def accumulate(tree: Tree): Unit =
-      if (accumulation.isDefinedAt(tree)) {
-        state = acc |+| accumulation(tree)
-      }
+      state = acc |+| accumulation(tree)
 
     /** Resets the state so that another tree can be traversed. */
     protected final def reset(): Unit = {
@@ -169,7 +164,7 @@ trait Transversers { this: AST =>
    * Right-to-left variants are not supported.
    */
   case class Strategy[A <: HList, I <: HList, S <: HList](
-      grammar: AttrGrammar[A, I, S], factory: TransFactory) {
+      grammar: AttrGrammar[A, I, S], private val factory: Factory) {
 
     type Acc = A
     type Inh = I
@@ -182,7 +177,7 @@ trait Transversers { this: AST =>
     /** Prepends an accumulated attribute based on trees only. */
     def accumulate[X: Monoid](acc: Tree =?> X) =
       copy(grammar = grammar.accumulate[X] {
-        case Attr(t, _, _, _) if acc.isDefinedAt(t) => acc(t)
+        case Attr.none(t) if acc.isDefinedAt(t) => acc(t)
       })
 
     /** Prepends an inherited attribute based on inherited and synthesized attributes. */
@@ -192,7 +187,7 @@ trait Transversers { this: AST =>
     /** Prepends an inherited attribute based on trees only. */
     def inherit[X: Monoid](inh: Tree =?> X) =
       copy(grammar = grammar.inherit[X] {
-        case Attr(t, _, _, _) if inh.isDefinedAt(t) => inh(t)
+        case Attr.none(t) if inh.isDefinedAt(t) => inh(t)
       })
 
     /** Prepends a synthesized attribute based on all synthesized attributes. */
@@ -202,7 +197,7 @@ trait Transversers { this: AST =>
     /** Prepends a synthesized attribute based on trees only. */
     def synthesize[X: Monoid](syn: Tree =?> X) =
       copy(grammar = grammar.synthesize[X] {
-        case Attr(t, _, _, _) if syn.isDefinedAt(t) => syn(t)
+        case Attr.none(t) if syn.isDefinedAt(t) => syn(t)
       })
 
     /** Traverses a tree with access to all attributes. */
@@ -386,7 +381,7 @@ trait Transversers { this: AST =>
   }
 
   /** A traversal / transformation factory. */
-  private[ast] trait TransFactory {
+  private[ast] trait Factory {
 
     def traversal[A <: HList, I <: HList, S <: HList]
       (grammar: AttrGrammar[A, I, S])
@@ -400,10 +395,10 @@ trait Transversers { this: AST =>
   }
 
   /** A traversal / transformation strategy factory. */
-  private[ast] object TransFactory {
+  private object Factory {
 
     /** Top-down traversal / transformation. */
-    object topDown extends TransFactory {
+    object topDown extends Factory {
 
       /** Top-down continue traversal. */
       override def traversal[A <: HList, I <: HList, S <: HList]
@@ -420,7 +415,7 @@ trait Transversers { this: AST =>
         = Transform.topDown(grammar)(template)
 
       /** Top-down break traversal / transformation. */
-      object break extends TransFactory {
+      object break extends Factory {
 
         /** Top-down break traversal. */
         override def traversal[A <: HList, I <: HList, S <: HList]
@@ -438,7 +433,7 @@ trait Transversers { this: AST =>
       }
 
       /** Top-down exhaustive traversal / transformation. */
-      object exhaust extends TransFactory {
+      object exhaust extends Factory {
 
         /** Top-down exhaustive traversal. */
         override def traversal[A <: HList, I <: HList, S <: HList]
@@ -457,7 +452,7 @@ trait Transversers { this: AST =>
     }
 
     /** Bottom-up traversal / transformation. */
-    object bottomUp extends TransFactory {
+    object bottomUp extends Factory {
 
       /** Bottom-up continue traversal. */
       override def traversal[A <: HList, I <: HList, S <: HList]
@@ -474,7 +469,7 @@ trait Transversers { this: AST =>
         = Transform.bottomUp(grammar)(template)
 
       /** Bottom-up break traversal / transformation. */
-      object break extends TransFactory {
+      object break extends Factory {
 
         /** Bottom-up break traversal. */
         override def traversal[A <: HList, I <: HList, S <: HList]
@@ -492,7 +487,7 @@ trait Transversers { this: AST =>
       }
 
       /** Bottom-up exhaustive traversal / transformation. */
-      object exhaust extends TransFactory {
+      object exhaust extends Factory {
 
         /** Bottom-up exhaustive traversal. */
         override def traversal[A <: HList, I <: HList, S <: HList]
@@ -747,40 +742,29 @@ trait Transversers { this: AST =>
   /** Fluent tree traversal / transformation APIs. */
   trait TransverserAPI { this: API =>
 
-    // Aliases
-    val PreWalk = TopDown
-    val PostWalk = BottomUp
+    private val initial = {
+      val nil: Attr[HNil, HNil, HNil] => HNil = const(HNil)
+      AttrGrammar(nil, nil, nil)
+    }
 
     /** Top-down traversal / transformation and attribute generation. */
-    object TopDown extends Strategy[HNil, HNil, HNil](
-        new AttrGrammar[HNil, HNil, HNil](),
-        TransFactory.topDown) {
+    object TopDown extends Strategy[HNil, HNil, HNil](initial, Factory.topDown) {
 
       /** Top-down break traversal / transformation and attribute generation. */
-      object break extends Strategy[HNil, HNil, HNil](
-          new AttrGrammar[HNil, HNil, HNil](),
-          TransFactory.topDown.break)
+      object break extends Strategy[HNil, HNil, HNil](initial, Factory.topDown.break)
 
       /** Top-down exhaustive traversal / transformation and attribute generation. */
-      object exhaust extends Strategy[HNil, HNil, HNil](
-          new AttrGrammar[HNil, HNil, HNil](),
-          TransFactory.topDown.exhaust)
+      object exhaust extends Strategy[HNil, HNil, HNil](initial, Factory.topDown.exhaust)
     }
 
     /** Bottom-up traversal / transformation and attribute generation. */
-    object BottomUp extends Strategy[HNil, HNil, HNil](
-        new AttrGrammar[HNil, HNil, HNil](),
-        TransFactory.bottomUp) {
+    object BottomUp extends Strategy[HNil, HNil, HNil](initial, Factory.bottomUp) {
 
       /** Bottom-up break traversal / transformation and attribute generation. */
-      object break extends Strategy[HNil, HNil, HNil](
-          new AttrGrammar[HNil, HNil, HNil](),
-          TransFactory.bottomUp.break)
+      object break extends Strategy[HNil, HNil, HNil](initial, Factory.bottomUp.break)
 
       /** Bottom-up exhaustive traversal / transformation and attribute generation. */
-      object exhaust extends Strategy[HNil, HNil, HNil](
-          new AttrGrammar[HNil, HNil, HNil](),
-          TransFactory.bottomUp.exhaust)
+      object exhaust extends Strategy[HNil, HNil, HNil](initial, Factory.bottomUp.exhaust)
     }
   }
 }
