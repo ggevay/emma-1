@@ -151,6 +151,7 @@ private[backend] trait Order extends Common {
             val newVals = vals flatMap { case v@core.ValDef(lhs, rhs, flags) =>
               if (ambiguousFuns contains lhs) {
                 Seq(v, core.ValDef(ambiguousFunMap(lhs), refreshAllValsAndLambdas(rhs), flags))
+                //Seq(v)
               } else {
                 Seq(v)
               }

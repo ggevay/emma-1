@@ -56,7 +56,27 @@ class OrderSpec extends BaseCompilerSpec {
         b.map(f$high)
       }
 
-      disamb(inp) shouldBe alphaEqTo(liftPipeline(exp))
+
+//      println("aaa")
+//      Thread.sleep(10000)
+//      println("bbb")
+
+      //
+      val t = liftPipeline(exp) //disamb(inp)
+      val pp =  Core.prettyPrint(t) //Pickle.prettyPrint(t)
+      //val ts = t.toString()
+      //println(pp)
+      println(u.showCode(t))
+      //println(u.showCode(unQualifyStaticModules(t)))
+      //println(ts)
+
+      //tb.compile(tb.parse(pp))  //
+      //tb.compile(tb.parse(u.showCode(t)))
+      //tb.compile(tb.parse(ts))
+
+      //
+
+      //disamb(inp) shouldBe alphaEqTo(liftPipeline(exp))
     }
 
     "chain of lambda refs" in {

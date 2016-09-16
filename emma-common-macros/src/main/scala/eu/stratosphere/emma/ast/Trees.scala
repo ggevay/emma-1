@@ -142,8 +142,49 @@ trait Trees { this: AST =>
       /** Replaces a sequence of term symbols with references to their `aliases`. */
       def rename(aliases: (u.Symbol, u.Symbol)*): u.Tree => u.Tree =
         if (aliases.isEmpty) identity else {
-          val (from, to) = aliases.toList.unzip
-          tree => substituteSymbols(Tree.copy(tree)(), from, to)
+//          val (from, to) = aliases.toList.unzip
+//          tree => substituteSymbols(Tree.copy(tree)(), from, to)
+          val m = Map(aliases: _*)
+          TopDown.transform {
+            case api.Id(sym) if m contains sym => api.Id(m(sym))
+            // TODO: We don't need to handle Ref, ValRef, and VarRef, because we are handling Id, right?
+//            case api.ValRef(sym) if m contains sym => api.ValRef(m(sym).asInstanceOf[TermSymbol])
+//            case api.VarRef(sym) if m contains sym => api.VarRef(m(sym).asInstanceOf[TermSymbol])
+            // TODO: Do we want to handle api.Lambda? (It's parameters will be handled anyway, it's just its sym)
+//            case api.Lambda(sym, params, body) => {
+//              assert(!(m contains sym), s"Tried to substitute symbol of Lambda")
+//              api.Lambda((params map {case api.ValDef(sym,)}): _*)(body)
+//            }
+            // TODO: nothing to do with case api.Def, right?
+            case api.Sel(target, member) if m contains member => api.Sel(target, m(member))
+            // TODO: We don't need to handle api.Acc, because we are handling api.Sel
+            //case api.Acc(target, member) if m contains member => api.Acc(target, m(member))
+            case api.BindingDef(lhs, rhs, flags) if m contains lhs =>
+              api.BindingDef(m(lhs).asInstanceOf[u.TermSymbol], rhs, flags)
+            case api.BindingRef(sym) if m contains sym => api.BindingRef(m(sym).asInstanceOf[u.TermSymbol])
+            // We are covering BindingSym by handling BindingDef and BindingRef
+            // ValSym and VarSym are handled by BindingRef and BindingDef
+            case api.PatAt(lhs, rhs) if m contains lhs => api.PatAt(m(lhs).asInstanceOf[u.TermSymbol], rhs)
+            // PatConst, PatQual, PatVar are handled already
+            case api.TermAcc(target, member) if m contains member =>
+              api.TermAcc(target, m(member).asInstanceOf[u.TermSymbol])
+            case api.DefCall(target, method, targs, argss@_*) if m contains method =>
+              api.DefCall(target)(m(method).asInstanceOf[u.TermSymbol], targs: _*)(argss: _*)
+            case api.DefDef(sym, flags, tparams, paramss@_*, body@_*) if m contains sym =>
+              api.DefDef(m(sym).asInstanceOf[u.MethodSymbol], flags)(tparams: _*)(
+                paramss.map{_.map{case api.ValDef(s, _, _) => s}}: _*)(body)
+            // DefSym is covered by DefCall and DefDef
+            //TODO: how to handle LabelSym?
+            case api.ModuleAcc(target, member) if m contains member =>
+              api.ModuleAcc(target, m(member).asInstanceOf[u.ModuleSymbol])
+            case api.ModuleRef(sym) if m contains sym => api.ModuleRef(m(sym).asInstanceOf[u.ModuleSymbol])
+            // ParRef and ParDef are handled by BindingRef and BindingDef
+            //case api.TypeSym
+
+            //TODO: just handle BindingSym, DefSym, ModuleSym, TypeSym   (apply using m(sym).name, .tpe, .flags, etc.)
+            //TODO: handle .name
+
+          }.andThen(_.tree)
         }
 
       /** Replaces occurrences of `find` with `repl` in a tree. */
