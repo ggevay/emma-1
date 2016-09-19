@@ -40,6 +40,15 @@ class RuntimeCompiler extends Compiler with JavaAST {
         factory.mkToolBox(options = s"-d $codeGenDir")
     }
   }
+
+  def specPipeline(typeCheck: Boolean = false, withPre: Boolean = true, withPost: Boolean = true)
+    (transformations: (u.Tree => u.Tree)*): u.Tree => u.Tree = {
+
+    pipeline(typeCheck, withPre, withPost)(transformations: _*) andThen {(tree: u.Tree) =>
+      tb.compile(tb.parse(u.showCode(tree)))
+      tree
+    }
+  }
 }
 
 object RuntimeCompiler {
