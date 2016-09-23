@@ -1,7 +1,7 @@
-package eu.stratosphere.emma
+package org.emmalanguage
 package api
 
-import model.Identity
+import eu.stratosphere.emma.api.model.Identity
 
 case class Group[K, +V](key: K, values: V) extends Identity[K] {
   def identity = key
