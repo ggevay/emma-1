@@ -54,7 +54,7 @@ trait DataBag[A] extends Serializable {
    * @tparam B Type of the output DataBag.
    * @return A DataBag containing the elements `f(x)` produced for each element x of the input.
    */
-  def map[B: ClassTag](f: (A) => B): Self[B]
+  def map[B: ClassTag](f: (A) => B): DataBag[B]
 
   /**
    * Monad flatMap.
@@ -63,7 +63,7 @@ trait DataBag[A] extends Serializable {
    * @tparam B Type of the output DataBag.
    * @return A DataBag containing the union (flattening) of the DataBags `f(x)` produced for each element of the input.
    */
-  def flatMap[B: ClassTag](f: (A) => Self[B]): Self[B]
+  def flatMap[B: ClassTag](f: (A) => DataBag[B]): DataBag[B]
 
   /**
    * Monad filter.
@@ -71,7 +71,7 @@ trait DataBag[A] extends Serializable {
    * @param p Predicate to be applied on the collection. Only qualifying elements are passed down the chain.
    * @return
    */
-  def withFilter(p: (A) => Boolean): Self[A]
+  def withFilter(p: (A) => Boolean): DataBag[A]
 
   // -----------------------------------------------------
   // Grouping and Set operations
@@ -93,10 +93,10 @@ trait DataBag[A] extends Serializable {
    * DataBag(Seq(1,1,2,3)) plus DataBag(Seq(1,2,5)) = DataBag(Seq(1,1,2,3,1,2,5))
    * }}}
    *
-   * @param addend The second addend parameter.
+   * @param that The second addend parameter.
    * @return The set-theoretic union (with duplicates) between this DataBag and the given subtrahend.
    */
-  def plus(addend: Self[A]): DataBag[A]
+  def plus(that: Self[A]): DataBag[A]
 
   /**
    * Removes duplicate entries from the bag, e.g.
@@ -128,7 +128,7 @@ object DataBag {
    * @tparam A The element type for the DataBag.
    * @return An empty DataBag for elements of type A.
    */
-  def apply[A: ClassTag](): DataBag[A] = new SeqDataBag(Seq.empty)
+  def apply[A: ClassTag](): DataBag[A] = SeqDataBag.apply[A]()
 
   /**
    * Sequence constructor.
@@ -137,5 +137,5 @@ object DataBag {
    * @tparam A The element type for the DataBag.
    * @return A DataBag containing the elements of the `values` sequence.
    */
-  def apply[A: ClassTag](values: Seq[A]): DataBag[A] = new SeqDataBag(values)
+  def apply[A: ClassTag](values: Seq[A]): DataBag[A] = SeqDataBag(values)
 }

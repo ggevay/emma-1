@@ -1,6 +1,7 @@
 package org.emmalanguage
 package api
 
+import org.apache.spark.SparkContext
 import org.apache.spark.rdd._
 
 import scala.language.{higherKinds, implicitConversions}
@@ -26,13 +27,13 @@ class RDDDataBag[A: ClassTag] private[api](private val rep: RDD[A]) extends Data
   // Monad Ops
   // -----------------------------------------------------
 
-  override def map[B: ClassTag](f: (A) => B): Self[B] =
+  override def map[B: ClassTag](f: (A) => B): DataBag[B] =
     rep.map(f)
 
-  override def flatMap[B: ClassTag](f: (A) => Self[B]): Self[B] =
+  override def flatMap[B: ClassTag](f: (A) => DataBag[B]): DataBag[B] =
     rep.flatMap(x => f(x).fetch())
 
-  def withFilter(p: (A) => Boolean): Self[A] =
+  def withFilter(p: (A) => Boolean): DataBag[A] =
     rep.filter(p)
 
   // -----------------------------------------------------
@@ -42,8 +43,8 @@ class RDDDataBag[A: ClassTag] private[api](private val rep: RDD[A]) extends Data
   override def groupBy[K: ClassTag](k: (A) => K): DataBag[Group[K, DataBag[A]]] =
     rep.groupBy(k).map { case (key, vals) => Group(key, DataBag(vals.toSeq)) }
 
-  override def plus(addend: Self[A]): DataBag[A] =
-    this.rep union addend.rep
+  override def plus(that: Self[A]): DataBag[A] =
+    this.rep union that.rep
 
   override def distinct(): DataBag[A] =
     rep.distinct
@@ -71,15 +72,9 @@ object RDDDataBag {
   private implicit def wrap[A: ClassTag](rep: RDD[A]): RDDDataBag[A] =
     new RDDDataBag(rep)
 
-  def main(args: Array[String]): Unit = {
-    val xs = new SeqDataBag(Seq(1, 2, 3))
-    val ys = new SeqDataBag(Seq(2, 4, 5))
+  def apply[A: ClassTag]()(implicit sc: SparkContext): DataBag[A] =
+    sc.emptyRDD[A]
 
-    xs.flatMap(x => ys.map(y => println(x, y)))
-
-    for {
-      x <- xs
-      y <- ys
-    } yield println((x, y))
-  }
+  def apply[A: ClassTag](seq: Seq[A])(implicit sc: SparkContext): RDDDataBag[A] =
+    sc.parallelize(seq)
 }

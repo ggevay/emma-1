@@ -24,13 +24,13 @@ class SeqDataBag[A] private[api](private val rep: Seq[A]) extends DataBag[A] {
   // Monad Ops
   // -----------------------------------------------------
 
-  override def map[B: ClassTag](f: (A) => B): Self[B] =
+  override def map[B: ClassTag](f: (A) => B): DataBag[B] =
     rep.map(f)
 
-  override def flatMap[B: ClassTag](f: (A) => Self[B]): Self[B] =
-    rep.flatMap(x => f(x).rep)
+  override def flatMap[B: ClassTag](f: (A) => DataBag[B]): DataBag[B] =
+    rep.flatMap(x => f(x).fetch())
 
-  def withFilter(p: (A) => Boolean): Self[A] =
+  def withFilter(p: (A) => Boolean): DataBag[A] =
     rep.filter(p)
 
   // -----------------------------------------------------
@@ -40,8 +40,8 @@ class SeqDataBag[A] private[api](private val rep: Seq[A]) extends DataBag[A] {
   override def groupBy[K: ClassTag](k: (A) => K): DataBag[Group[K, DataBag[A]]] =
     rep.groupBy(k).toSeq.map { case (key, vals) => Group(key, wrap(vals)) }
 
-  override def plus(addend: Self[A]): DataBag[A] =
-    this.rep ++ addend.rep
+  override def plus(that: Self[A]): DataBag[A] =
+    this.rep ++ that.rep
 
   override def distinct(): DataBag[A] =
     rep.distinct
@@ -78,4 +78,9 @@ object SeqDataBag {
   private implicit def wrap[A](rep: Seq[A]): SeqDataBag[A] =
     new SeqDataBag(rep)
 
+  def apply[A: ClassTag](): DataBag[A] =
+    new SeqDataBag(Seq.empty)
+
+  def apply[A: ClassTag](values: Seq[A]): DataBag[A] =
+    new SeqDataBag(values)
 }
