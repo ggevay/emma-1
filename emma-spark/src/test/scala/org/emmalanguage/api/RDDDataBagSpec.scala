@@ -56,7 +56,7 @@ class RDDDataBagSpec extends FreeSpec with Matchers with PropertyChecks with Dat
     withSparkContext { implicit sc =>
       val act = for {
         b <- RDDDataBag(Seq(hhBook))
-        c <- DataBag(hhCrts)
+        c <- SeqDataBag(hhCrts) // nested DataBag cannot be RDDDataBag, as those are not serializable
         if b.title == c.book.title
         if b.title == "The Hitchhiker's Guide to the Galaxy"
       } yield (b.title, c.name)
@@ -67,6 +67,18 @@ class RDDDataBagSpec extends FreeSpec with Matchers with PropertyChecks with Dat
         if b.title == c.book.title
         if b.title == "The Hitchhiker's Guide to the Galaxy"
       } yield (b.title, c.name)
+
+      act shouldEqual DataBag(exp)
+    }
+  }
+
+  "groupBy" in {
+    withSparkContext { implicit sc =>
+      val act = RDDDataBag(hhCrts).groupBy(_.book)
+
+      val exp = hhCrts.groupBy(_.book).toSeq.map {
+        case (k, vs) => Group(k, DataBag(vs))
+      }
 
       act shouldEqual DataBag(exp)
     }
