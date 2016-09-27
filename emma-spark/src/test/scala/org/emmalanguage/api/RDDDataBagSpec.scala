@@ -10,7 +10,72 @@ class RDDDataBagSpec extends FreeSpec with Matchers with PropertyChecks with Dat
 
   import LocalSparkSession._
 
-  "maps" in {
+  "fold" in {
+    withSparkContext { implicit sc =>
+      val act = {
+        val xs = RDDDataBag(hhCrts)
+        val ys = RDDDataBag(hhCrts.map(_.book.title.length))
+
+        // FIXME: these predicates have to be defined externally in order to be a serializable part of the fold closure
+        val p1 = (c: Character) => c.name startsWith "Zaphod"
+        val p2 = (c: Character) => c.name startsWith "Ford"
+        val p3 = (c: Character) => c.name startsWith "Marvin"
+
+        Seq(
+          //@formatter:off
+          "isEmpty"  -> xs.isEmpty,
+          "nonEmpty" -> xs.nonEmpty,
+          "min"      -> ys.min,
+          "max"      -> ys.max,
+          "sum"      -> ys.sum,
+          "product"  -> ys.product,
+          "size"     -> xs.size,
+          "count"    -> xs.count(p1), // FIXME: fold macro needs externally defiend lambda
+          "existsP"  -> xs.exists(_.name startsWith "Arthur"),
+          "existsN"  -> xs.exists(_.name startsWith "Marvin"),
+          "forallP"  -> xs.forall(_.name startsWith "Arthur"),
+          "forallN"  -> xs.forall(_.name startsWith "Trillian"),
+          "findP"    -> xs.find(p2), // FIXME: fold macro needs externally defiend lambda
+          "findN"    -> xs.find(p3), // FIXME: fold macro needs externally defiend lambda
+          "bottom"   -> ys.bottom(1),
+          "top"      -> ys.top(2)
+          //@formatter:on
+        )
+      }
+
+      val exp = {
+        val xs = hhCrts
+        val ys = hhCrts.map(_.book.title.length)
+        Seq(
+          //@formatter:off
+          "isEmpty"  -> xs.isEmpty,
+          "nonEmpty" -> xs.nonEmpty,
+          "min"      -> ys.min,
+          "max"      -> ys.max,
+          "sum"      -> ys.sum,
+          "product"  -> ys.product,
+          "size"     -> xs.size,
+          "count"    -> xs.count(_.name startsWith "Zaphod"),
+          "existsP"  -> xs.exists(_.name startsWith "Arthur"),
+          "existsN"  -> xs.exists(_.name startsWith "Marvin"),
+          "forallP"  -> xs.forall(_.name startsWith "Arthur"),
+          "forallN"  -> xs.forall(_.name startsWith "Trillian"),
+          "findP"    -> xs.find(_.name startsWith "Ford"),
+          "findN"    -> xs.find(_.name startsWith "Marvin"),
+          "bottom"   -> ys.sorted.slice(ys.length - 1, ys.length),
+          "top"      -> ys.sorted.slice(0, 2)
+          //@formatter:on
+        )
+      }
+
+      act should have size exp.size
+
+      for ((k, v) <- exp)
+        act should contain(k, v)
+    }
+  }
+
+  "map" in {
     withSparkContext { implicit sc =>
       val act = for {
         c <- RDDDataBag(hhCrts)
@@ -52,7 +117,7 @@ class RDDDataBagSpec extends FreeSpec with Matchers with PropertyChecks with Dat
     }
   }
 
-  "for-comprehensions" in {
+  "for-comprehension" in {
     withSparkContext { implicit sc =>
       val act = for {
         b <- RDDDataBag(Seq(hhBook))
