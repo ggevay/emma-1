@@ -6,15 +6,15 @@ import eu.stratosphere.emma.testschema.Literature._
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{FreeSpec, Matchers}
 
-class RDDDataBagSpec extends FreeSpec with Matchers with PropertyChecks with DataBagEquality {
+class DatasetDataBagSpec extends FreeSpec with Matchers with PropertyChecks with DataBagEquality {
 
   import LocalSparkSession._
 
   "structural recursion" in {
-    withSparkContext { implicit sc =>
+    withSparkSession { implicit spark  =>
       val act = {
-        val xs = SparkRDD(hhCrts)
-        val ys = SparkRDD(hhCrts.map(_.book.title.length))
+        val xs = SparkDataset.foo(hhCrts)
+        val ys = SparkDataset.foo(hhCrts.map(_.book.title.length))
 
         // FIXME: these predicates have to be defined externally in order to be a serializable part of the fold closure
         val p1 = (c: Character) => c.name startsWith "Zaphod"
@@ -78,9 +78,9 @@ class RDDDataBagSpec extends FreeSpec with Matchers with PropertyChecks with Dat
   "monad ops" - {
 
     "map" in {
-      withSparkContext { implicit sc =>
+      withSparkSession { implicit spark  =>
         val act = for {
-          c <- SparkRDD(hhCrts)
+          c <- SparkDataset.foo(hhCrts)
         } yield c.name
 
         val exp = for {
@@ -92,9 +92,9 @@ class RDDDataBagSpec extends FreeSpec with Matchers with PropertyChecks with Dat
     }
 
   "flatMap" in {
-    withSparkContext { implicit sc =>
+    withSparkSession { implicit spark  =>
       val act = for {
-        (b, cs) <- SparkRDD(Seq((hhBook, DataBag(hhCrts))))
+        (b, cs) <- SparkDataset.foo(Seq((hhBook, DataBag(hhCrts))))
         c <- cs
       } yield c.name
 
@@ -108,8 +108,8 @@ class RDDDataBagSpec extends FreeSpec with Matchers with PropertyChecks with Dat
     }
 
     "withFilter" in {
-      withSparkContext { implicit sc =>
-        val act = SparkRDD(Seq(hhBook))
+      withSparkSession { implicit spark  =>
+        val act = SparkDataset.foo(Seq(hhBook))
           .withFilter(_.title == "The Hitchhiker's Guide to the Galaxy")
 
         val exp = Seq(hhBook)
@@ -120,10 +120,10 @@ class RDDDataBagSpec extends FreeSpec with Matchers with PropertyChecks with Dat
     }
 
     "for-comprehensions" in {
-      withSparkContext { implicit sc =>
+      withSparkSession { implicit spark  =>
         val act = for {
-          b <- SparkRDD(Seq(hhBook))
-          c <- ScalaTraversable(hhCrts) // nested DataBag cannot be RDDDataBag, as those are not serializable
+          b <- SparkDataset.foo(Seq(hhBook))
+          c <- ScalaTraversable(hhCrts) // nested DataBag cannot be DatasetDataBag, as those are not serializable
           if b.title == c.book.title
           if b.title == "The Hitchhiker's Guide to the Galaxy"
         } yield (b.title, c.name)
@@ -141,8 +141,8 @@ class RDDDataBagSpec extends FreeSpec with Matchers with PropertyChecks with Dat
   }
 
   "grouping" in {
-    withSparkContext { implicit sc =>
-      val act = SparkRDD(hhCrts).groupBy(_.book)
+    withSparkSession { implicit spark  =>
+      val act = SparkDataset.foo(hhCrts).groupBy(_.book)
 
       val exp = hhCrts.groupBy(_.book).toSeq.map {
         case (k, vs) => Group(k, DataBag(vs))
@@ -158,8 +158,8 @@ class RDDDataBagSpec extends FreeSpec with Matchers with PropertyChecks with Dat
     val ys = Seq("fuu", "bin", "bar", "bur", "lez", "liz", "lag")
 
     "union" in {
-      withSparkContext { implicit sc =>
-        val act = SparkRDD(xs) union SparkRDD(ys)
+      withSparkSession { implicit spark  =>
+        val act = SparkDataset.foo(xs) union SparkDataset.foo(ys)
         val exp = xs union ys
 
         act shouldEqual DataBag(exp)
@@ -167,12 +167,12 @@ class RDDDataBagSpec extends FreeSpec with Matchers with PropertyChecks with Dat
     }
 
     "distinct" in {
-      withSparkContext { implicit sc =>
-        val acts = Seq(SparkRDD(xs).distinct, SparkRDD(ys).distinct)
+      withSparkSession { implicit spark  =>
+        val acts = Seq(SparkDataset.foo(xs).distinct, SparkDataset.foo(ys).distinct)
         val exps = Seq(xs.distinct, ys.distinct)
 
         for ((act, exp) <- acts zip exps)
-          act shouldEqual SparkRDD(exp)
+          act shouldEqual SparkDataset.foo(exp)
       }
     }
   }

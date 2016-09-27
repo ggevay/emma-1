@@ -2,7 +2,6 @@ package org.emmalanguage
 package api
 
 import scala.language.higherKinds
-import org.scalatest._
 
 import scala.reflect.ClassTag
 
@@ -14,8 +13,8 @@ trait DataBagEquality {
 
     override def areEqual(lhs: M[A], any: Any): Boolean = any match {
       case rhs: DataBag[_] =>
-        val lhsVals = lhs.fetch()
-        val rhsVals = rhs.fetch()
+        val lhsVals = lhs.fetch().toSeq
+        val rhsVals = rhs.fetch().toSeq
 
         val lhsXtra = lhsVals diff rhsVals
         val rhsXtra = rhsVals diff lhsVals

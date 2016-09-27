@@ -1,5 +1,7 @@
 package org.emmalanguage.api
 
+import io.Format
+
 import scala.language.higherKinds
 import scala.reflect.ClassTag
 
@@ -7,8 +9,6 @@ import scala.reflect.ClassTag
  * An abstraction for homogeneous collections.
  */
 trait DataBag[A] extends Serializable {
-
-  type Self[X] <: DataBag[X]
 
   // -----------------------------------------------------
   // Structural recursion
@@ -41,7 +41,7 @@ trait DataBag[A] extends Serializable {
    * @tparam B The result type of the recursive computation
    * @return
    */
-  def fold[B: ClassTag](z: B)(s: A => B, u: (B, B) => B): B
+  def fold[B: Meta](z: B)(s: A => B, u: (B, B) => B): B
 
   // -----------------------------------------------------
   // Monad Ops
@@ -54,7 +54,7 @@ trait DataBag[A] extends Serializable {
    * @tparam B Type of the output DataBag.
    * @return A DataBag containing the elements `f(x)` produced for each element x of the input.
    */
-  def map[B: ClassTag](f: (A) => B): DataBag[B]
+  def map[B: Meta](f: (A) => B): DataBag[B]
 
   /**
    * Monad flatMap.
@@ -63,7 +63,7 @@ trait DataBag[A] extends Serializable {
    * @tparam B Type of the output DataBag.
    * @return A DataBag containing the union (flattening) of the DataBags `f(x)` produced for each element of the input.
    */
-  def flatMap[B: ClassTag](f: (A) => DataBag[B]): DataBag[B]
+  def flatMap[B: Meta](f: (A) => DataBag[B]): DataBag[B]
 
   /**
    * Monad filter.
@@ -74,7 +74,7 @@ trait DataBag[A] extends Serializable {
   def withFilter(p: (A) => Boolean): DataBag[A]
 
   // -----------------------------------------------------
-  // Grouping and Set operations
+  // Grouping
   // -----------------------------------------------------
 
   /**
@@ -84,7 +84,11 @@ trait DataBag[A] extends Serializable {
    * @tparam K Key type.
    * @return A version of this bag with the entries grouped by key.
    */
-  def groupBy[K: ClassTag](k: (A) => K): DataBag[Group[K, DataBag[A]]]
+  def groupBy[K: Meta](k: (A) => K): DataBag[Group[K, DataBag[A]]]
+
+  // -----------------------------------------------------
+  // Set operations
+  // -----------------------------------------------------
 
   /**
    * Plus operator (union). Respects duplicates, e.g.:
@@ -96,7 +100,7 @@ trait DataBag[A] extends Serializable {
    * @param that The second addend parameter.
    * @return The set-theoretic union (with duplicates) between this DataBag and the given subtrahend.
    */
-  def plus(that: Self[A]): DataBag[A]
+  def union(that: DataBag[A]): DataBag[A]
 
   /**
    * Removes duplicate entries from the bag, e.g.
@@ -107,17 +111,36 @@ trait DataBag[A] extends Serializable {
    *
    * @return A version of this DataBag without duplicate entries.
    */
-  def distinct(): DataBag[A]
+  def distinct: DataBag[A]
 
   // -----------------------------------------------------
-  // Conversion Methods
+  // Sinks
   // -----------------------------------------------------
+
+  /**
+   * Writes a DataBag into the specified `path` using a format `F` with (implicit) ad-hoc IO Support.
+   * Explicitly passes the format options.
+   *
+   * @param path The location where the data will be written.
+   * @tparam F The format to be used when writing the data.
+   */
+  def write[F <: Format : Meta](path: String, options: F#Config): Unit
+
+  /**
+   * Writes a DataBag into the specified `path` using a format `F` with (implicit) ad-hoc IO Support.
+   * Short-hand which uses the Format's default options.
+   *
+   * @param path The location where the data will be written.
+   * @tparam F The format to be used when writing the data.
+   */
+  def write[F <: Format : Meta](path: String): Unit
+
   /**
    * Converts a DataBag abstraction back into a scala sequence.
    *
    * @return The contents of the DataBag as a scala sequence.
    */
-  def fetch(): Seq[A]
+  def fetch(): Traversable[A]
 }
 
 object DataBag {
@@ -128,7 +151,7 @@ object DataBag {
    * @tparam A The element type for the DataBag.
    * @return An empty DataBag for elements of type A.
    */
-  def apply[A: ClassTag](): DataBag[A] = SeqDataBag.apply[A]()
+  def apply[A: Meta]: DataBag[A] = ScalaTraversable[A]
 
   /**
    * Sequence constructor.
@@ -137,5 +160,5 @@ object DataBag {
    * @tparam A The element type for the DataBag.
    * @return A DataBag containing the elements of the `values` sequence.
    */
-  def apply[A: ClassTag](values: Seq[A]): DataBag[A] = SeqDataBag(values)
+  def apply[A: Meta](values: Seq[A]): DataBag[A] = ScalaTraversable(values)
 }

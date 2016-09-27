@@ -8,50 +8,59 @@ import scala.language.{higherKinds, implicitConversions}
 import scala.reflect.ClassTag
 
 /**
- * A `DataBag` implementation backed by a Scala Seq.
+ * A `DataBag` implementation backed by a Spark `RDD`.
  */
-class RDDDataBag[A: ClassTag] private[api](private val rep: RDD[A]) extends DataBag[A] {
+class SparkRDD[A: Meta] private[api](private val rep: RDD[A]) extends DataBag[A] {
 
-  import RDDDataBag.wrap
-
-  override final type Self[X] = RDDDataBag[X]
+  import SparkRDD.wrap
 
   // -----------------------------------------------------
   // Structural recursion
   // -----------------------------------------------------
 
-  override def fold[B: ClassTag](z: B)(s: A => B, p: (B, B) => B): B =
-    rep.map(x => s(x)).fold(z)(p)
+  override def fold[B: Meta](z: B)(s: A => B, u: (B, B) => B): B =
+    rep.map(x => s(x)).fold(z)(u)
 
   // -----------------------------------------------------
   // Monad Ops
   // -----------------------------------------------------
 
-  override def map[B: ClassTag](f: (A) => B): DataBag[B] =
+  override def map[B: Meta](f: (A) => B): DataBag[B] =
     rep.map(f)
 
-  override def flatMap[B: ClassTag](f: (A) => DataBag[B]): DataBag[B] =
+  override def flatMap[B: Meta](f: (A) => DataBag[B]): DataBag[B] =
     rep.flatMap(x => f(x).fetch())
 
   def withFilter(p: (A) => Boolean): DataBag[A] =
     rep.filter(p)
 
   // -----------------------------------------------------
-  // Grouping and Set operations
+  // Grouping
   // -----------------------------------------------------
 
-  override def groupBy[K: ClassTag](k: (A) => K): DataBag[Group[K, DataBag[A]]] =
+  override def groupBy[K: Meta](k: (A) => K): DataBag[Group[K, DataBag[A]]] =
     rep.groupBy(k).map { case (key, vals) => Group(key, DataBag(vals.toSeq)) }
 
-  override def plus(that: Self[A]): DataBag[A] =
-    this.rep union that.rep
+  // -----------------------------------------------------
+  // Set operations
+  // -----------------------------------------------------
 
-  override def distinct(): DataBag[A] =
+  override def union(that: DataBag[A]): DataBag[A] = that match {
+    case rdd: SparkRDD[A] => this.rep union rdd.rep
+  }
+
+  override def distinct: DataBag[A] =
     rep.distinct
 
   // -----------------------------------------------------
-  // Conversion Methods
+  // Sinks
   // -----------------------------------------------------
+
+  def write[F <: io.Format : Meta](path: String, options: F#Config): Unit =
+    ???
+
+  override def write[F <: io.Format : Meta](path: String): Unit =
+    ???
 
   def fetch(): Seq[A] =
     rep.collect()
@@ -67,14 +76,14 @@ class RDDDataBag[A: ClassTag] private[api](private val rep: RDD[A]) extends Data
   // override def toString: String = ??? TODO
 }
 
-object RDDDataBag {
+object SparkRDD {
 
-  private implicit def wrap[A: ClassTag](rep: RDD[A]): RDDDataBag[A] =
-    new RDDDataBag(rep)
+  private implicit def wrap[A: Meta](rep: RDD[A]): SparkRDD[A] =
+    new SparkRDD(rep)
 
-  def apply[A: ClassTag]()(implicit sc: SparkContext): DataBag[A] =
+  def apply[A: Meta]()(implicit sc: SparkContext): SparkRDD[A] =
     sc.emptyRDD[A]
 
-  def apply[A: ClassTag](seq: Seq[A])(implicit sc: SparkContext): RDDDataBag[A] =
+  def apply[A: Meta](seq: Seq[A])(implicit sc: SparkContext): SparkRDD[A] =
     sc.parallelize(seq)
 }
