@@ -14,60 +14,77 @@ package object api {
   // types supported by Emma
   // -----------------------------------------------------
 
-  trait Meta[T] {
+  //@formatter:off
+  trait Meta[T] extends Serializable {
     type Type = T
-    val ctag: ClassTag[T]
-    val ttag: TypeTag[T]
+    def ctag: ClassTag[T]
+    def ttag: TypeTag[T]
   }
 
   // primitive types
 
+  implicit object BoolMeta extends Meta[Boolean] {
+    override def ctag = classTag[Boolean]
+    override def ttag = typeTag[Boolean]
+  }
+
   implicit object ByteMeta extends Meta[Byte] {
-    override val ctag = classTag[Byte]
-    override val ttag = typeTag[Byte]
+    override def ctag = classTag[Byte]
+    override def ttag = typeTag[Byte]
   }
 
   implicit object IntMeta extends Meta[Int] {
-    override val ctag = classTag[Int]
-    override val ttag = typeTag[Int]
+    override def ctag = classTag[Int]
+    override def ttag = typeTag[Int]
   }
 
   implicit object LongMeta extends Meta[Long] {
-    override val ctag = classTag[Long]
-    override val ttag = typeTag[Long]
+    override def ctag = classTag[Long]
+    override def ttag = typeTag[Long]
   }
 
   implicit object CharMeta extends Meta[Char] {
-    override val ctag = classTag[Char]
-    override val ttag = typeTag[Char]
+    override def ctag = classTag[Char]
+    override def ttag = typeTag[Char]
   }
 
   implicit object FloatMeta extends Meta[Float] {
-    override val ctag = classTag[Float]
-    override val ttag = typeTag[Float]
+    override def ctag = classTag[Float]
+    override def ttag = typeTag[Float]
   }
 
   implicit object DoubleMeta extends Meta[Double] {
-    override val ctag = classTag[Double]
-    override val ttag = typeTag[Double]
+    override def ctag = classTag[Double]
+    override def ttag = typeTag[Double]
+  }
+
+  implicit object StringMeta extends Meta[String] {
+    override def ctag = classTag[String]
+    override def ttag = typeTag[String]
   }
 
   // product types
-
-  class ProductMeta[T <: Product : ClassTag : TypeTag] extends Meta[T] {
-    override val ctag = implicitly[ClassTag[T]]
-    override val ttag = implicitly[TypeTag[T]]
+  implicit def ProductMeta[T <: Product : ClassTag : TypeTag] = new Meta[T] {
+    override def ctag = implicitly[ClassTag[T]]
+    override def ttag = implicitly[TypeTag[T]]
   }
 
-  implicit def productType[T <: Product : ClassTag : TypeTag] = new ProductMeta[T]
+  // DataBag
+  implicit def DataBagMeta[T : ClassTag : TypeTag] = new Meta[DataBag[T]] {
+    override def ctag = implicitly[ClassTag[DataBag[T]]]
+    override def ttag = implicitly[TypeTag[DataBag[T]]]
+  }
+  //@formatter:on
 
-  // implicit type metainformation projections
+  // implicit ClassTag and TypeTag projections from a type Meta
 
-  implicit def ttagForType[T: Meta]: TypeTag[T] =
-    implicitly[Meta[T]].ttag
+  object MetaImplicits {
+    implicit def ttagForType[T: Meta]: TypeTag[T] =
+      implicitly[Meta[T]].ttag
 
-  implicit def ctagForType[T: Meta]: ClassTag[T] =
-    implicitly[Meta[T]].ctag
+    implicit def ctagForType[T: Meta]: ClassTag[T] =
+      implicitly[Meta[T]].ctag
+  }
 
   // -----------------------------------------------------
   // limits

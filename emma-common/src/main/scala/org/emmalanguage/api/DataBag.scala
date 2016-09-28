@@ -91,7 +91,7 @@ trait DataBag[A] extends Serializable {
   // -----------------------------------------------------
 
   /**
-   * Plus operator (union). Respects duplicates, e.g.:
+   * Union operator. Respects duplicates, e.g.:
    *
    * {{{
    * DataBag(Seq(1,1,2,3)) plus DataBag(Seq(1,2,5)) = DataBag(Seq(1,1,2,3,1,2,5))
