@@ -6,9 +6,13 @@ import eu.stratosphere.emma.testschema.Literature._
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{FreeSpec, Matchers}
 
-import scala.language.higherKinds
+import scala.language.{higherKinds, implicitConversions}
 
 trait DataBagSpec extends FreeSpec with Matchers with PropertyChecks with DataBagEquality {
+
+  // FIXME: intOrd should have a static owner
+  // implicit val intOrd = implicitly[Ordering[Int]]
+  import DataBagSpec.intOrd
 
   // ---------------------------------------------------------------------------
   // abstract trait methods
@@ -37,7 +41,7 @@ trait DataBagSpec extends FreeSpec with Matchers with PropertyChecks with DataBa
     withBackendContext { implicit sc =>
       val act = {
         val xs = Bag(hhCrts)
-        val ys = Bag(hhCrts.map(_.book.title.length))
+        val ys = Bag(hhCrts.map(DataBagSpec.f))
 
         // FIXME: these predicates have to be defined externally in order to be a serializable part of the fold closure
         // FIXME: However, hard-coding the expanded version of the problematic folds (find, count) resolves the issue
@@ -49,8 +53,8 @@ trait DataBagSpec extends FreeSpec with Matchers with PropertyChecks with DataBa
           //@formatter:off
           "isEmpty"  -> xs.isEmpty,
           "nonEmpty" -> xs.nonEmpty,
-          "min"      -> ys.min,
-          "max"      -> ys.max,
+          "min"      -> ys.fold(IntLimits.max)(x => x, (x, y) => intOrd.min(x, y)), // FIXME: ys.min does not work
+          "max"      -> ys.fold(IntLimits.min)(x => x, (x, y) => intOrd.max(x, y)), // FIXME: ys.max does not work
           "sum"      -> ys.sum,
           "product"  -> ys.product,
           "size"     -> xs.size,
@@ -197,4 +201,10 @@ trait DataBagSpec extends FreeSpec with Matchers with PropertyChecks with DataBa
 
   "sinks" - {
   }
+}
+
+object DataBagSpec {
+  implicit val intOrd = implicitly[Ordering[Int]]
+
+  val f = (c: Character) => c.book.title.length
 }
