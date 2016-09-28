@@ -13,7 +13,6 @@ import scala.reflect.ClassTag
 class SparkRDD[A: Meta] private[api](private val rep: RDD[A]) extends DataBag[A] {
 
   import SparkRDD.wrap
-  import MetaImplicits._
 
   // -----------------------------------------------------
   // Structural recursion
@@ -78,8 +77,6 @@ class SparkRDD[A: Meta] private[api](private val rep: RDD[A]) extends DataBag[A]
 }
 
 object SparkRDD {
-
-  import MetaImplicits._
 
   implicit def wrap[A: Meta](rep: RDD[A]): SparkRDD[A] =
     new SparkRDD(rep)
