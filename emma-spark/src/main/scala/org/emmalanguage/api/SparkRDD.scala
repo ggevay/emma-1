@@ -5,7 +5,6 @@ import org.apache.spark.SparkContext
 import org.apache.spark.rdd._
 
 import scala.language.{higherKinds, implicitConversions}
-import scala.reflect.ClassTag
 
 /**
  * A `DataBag` implementation backed by a Spark `RDD`.
