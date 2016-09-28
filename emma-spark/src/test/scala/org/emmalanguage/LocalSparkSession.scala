@@ -59,7 +59,7 @@ object LocalSparkSession {
     System.clearProperty("spark.driver.port")
   }
 
-  /** Runs `f` by passing in a {@link SparkSession} and ensures that it is stopped afterwards. */
+  /** Runs `f` by passing in a `SparkSession` and ensures that it is stopped afterwards. */
   def withSparkSession[T](f: SparkSession => T): T = {
     val spark = getOrCreate()
     try {
@@ -69,7 +69,7 @@ object LocalSparkSession {
     }
   }
 
-  /** Runs `f` by passing in a {@link SparkContext} and ensures that it is stopped afterwards. */
+  /** Runs `f` by passing in a `SparkContext` and ensures that it is stopped afterwards. */
   def withSparkContext[T](f: SparkContext => T): T = {
     val spark = getOrCreate()
     try {

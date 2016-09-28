@@ -2,7 +2,6 @@ package org.emmalanguage
 package api
 
 import scala.language.higherKinds
-
 import scala.reflect.ClassTag
 
 trait DataBagEquality {
