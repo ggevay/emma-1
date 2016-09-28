@@ -8,6 +8,10 @@ import org.scalatest.{FreeSpec, Matchers}
 
 import scala.language.higherKinds
 
+import scala.reflect.ClassTag
+import scala.reflect.runtime.universe._
+
+
 trait DataBagSpec extends FreeSpec with Matchers with PropertyChecks with DataBagEquality {
 
   // ---------------------------------------------------------------------------
@@ -24,10 +28,10 @@ trait DataBagSpec extends FreeSpec with Matchers with PropertyChecks with DataBa
   def withBackendContext[T](f: BackendContext => T): T
 
   /** An empty [[DataBag]] refinement type constructor. */
-  def Bag[A: Meta](implicit ctx: BackendContext): Bag[A]
+  def Bag[A: Meta : ClassTag : TypeTag](implicit ctx: BackendContext): Bag[A]
 
   /** An [[DataBag]] refinement type constructor which takes a Scala Seq. */
-  def Bag[A: Meta](seq: Seq[A])(implicit ctx: BackendContext): Bag[A]
+  def Bag[A: Meta : ClassTag : TypeTag](seq: Seq[A])(implicit ctx: BackendContext): Bag[A]
 
   // ---------------------------------------------------------------------------
   // spec tests

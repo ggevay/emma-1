@@ -1,20 +1,34 @@
 package org.emmalanguage
 package api
 
+import org.apache.flink.api.common.typeinfo.TypeInformation
+import org.apache.flink.api.scala.typeutils.TypeUtils
 import org.apache.flink.api.scala.{DataSet, ExecutionEnvironment}
 
 import scala.language.{higherKinds, implicitConversions}
+import scala.reflect.ClassTag
+import scala.reflect.runtime.universe._
 
 /** A `DataBag` implementation backed by a Flink `DataSet`. */
-class FlinkDataSet[A: Meta] private[api](private val rep: DataSet[A]) extends DataBag[A] {
+class FlinkDataSet[A: Meta : ClassTag : TypeTag] private[api](private val rep: DataSet[A]) extends DataBag[A] {
 
-  import FlinkDataSet.{wrap, typeInformationForType}
+  import FlinkDataSet.{wrap}
+
+  import org.apache.flink.api.scala._
 
   // -----------------------------------------------------
   // Structural recursion
   // -----------------------------------------------------
 
-  override def fold[B: Meta](z: B)(s: A => B, u: (B, B) => B): B = {
+  override def fold[B: Meta : ClassTag : TypeTag](z: B)(s: A => B, u: (B, B) => B): B = {
+
+    //
+//    import scala.reflect.runtime.universe._
+//    val ctag = implicitly[ClassTag[B]]
+//    val ttag = implicitly[TypeTag[B]]
+//    val typeInfo = implicitly[TypeInformation[B]]
+    //
+
     val collected = rep.map(x => s(x)).reduce(u).collect()
     if (collected.isEmpty) {
       z
@@ -28,10 +42,10 @@ class FlinkDataSet[A: Meta] private[api](private val rep: DataSet[A]) extends Da
   // Monad Ops
   // -----------------------------------------------------
 
-  override def map[B: Meta](f: (A) => B): DataBag[B] =
+  override def map[B: Meta : ClassTag : TypeTag](f: (A) => B): DataBag[B] =
     rep.map(f)
 
-  override def flatMap[B: Meta](f: (A) => DataBag[B]): DataBag[B] =
+  override def flatMap[B: Meta : ClassTag : TypeTag](f: (A) => DataBag[B]): DataBag[B] =
     rep.flatMap((x: A) => f(x).fetch())
 
   def withFilter(p: (A) => Boolean): DataBag[A] =
@@ -41,7 +55,7 @@ class FlinkDataSet[A: Meta] private[api](private val rep: DataSet[A]) extends Da
   // Grouping
   // -----------------------------------------------------
 
-  override def groupBy[K: Meta](k: (A) => K): DataBag[Group[K, DataBag[A]]] =
+  override def groupBy[K: Meta : ClassTag : TypeTag](k: (A) => K): DataBag[Group[K, DataBag[A]]] =
     rep.groupBy(k).reduceGroup((it: Iterator[A]) => {
       val buffer = it.toBuffer // This is because the iterator might not be serializable
       Group(k(buffer.head), DataBag(buffer))
@@ -62,10 +76,10 @@ class FlinkDataSet[A: Meta] private[api](private val rep: DataSet[A]) extends Da
   // Sinks
   // -----------------------------------------------------
 
-  def write[F <: io.Format : Meta](path: String, options: F#Config): Unit =
+  def write[F <: io.Format : Meta : ClassTag : TypeTag](path: String, options: F#Config): Unit =
     ???
 
-  override def write[F <: io.Format : Meta](path: String): Unit =
+  override def write[F <: io.Format : Meta : ClassTag : TypeTag](path: String): Unit =
     ???
 
   def fetch(): Seq[A] =
@@ -76,15 +90,23 @@ object FlinkDataSet {
 
   import org.apache.flink.api.common.typeinfo.TypeInformation
 
-  implicit def typeInformationForType[T: Meta]: TypeInformation[T] =
-    org.apache.flink.api.scala.createTypeInformation
 
-  implicit def wrap[A: Meta](rep: DataSet[A]): FlinkDataSet[A] =
+
+//  implicit def typeInformationForType[T: Meta : ClassTag : TypeTag]: TypeInformation[T] = {
+//    implicit def createTypeInformationLocal[T]: TypeInformation[T] = org.apache.flink.api.scala.createTypeInformation[T]
+//    //org.apache.flink.api.scala.createTypeInformation[T]
+//
+//
+//
+//    createTypeInformationLocal[T]
+//  }
+
+  implicit def wrap[A: Meta : ClassTag : TypeTag](rep: DataSet[A]): FlinkDataSet[A] =
     new FlinkDataSet(rep)
 
-  def apply[A: Meta]()(implicit flink: ExecutionEnvironment): FlinkDataSet[A] =
+  def apply[A: Meta : ClassTag : TypeTag]()(implicit flink: ExecutionEnvironment): FlinkDataSet[A] =
     flink.fromElements[A]()
 
-  def apply[A: Meta](seq: Seq[A])(implicit flink: ExecutionEnvironment): FlinkDataSet[A] =
+  def apply[A: Meta : ClassTag : TypeTag](seq: Seq[A])(implicit flink: ExecutionEnvironment): FlinkDataSet[A] =
     flink.fromCollection(seq)
 }

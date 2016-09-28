@@ -4,6 +4,10 @@ package api
 import scala.language.{higherKinds, implicitConversions}
 import scala.reflect.{ClassTag, classTag}
 
+import scala.reflect.ClassTag
+import scala.reflect.runtime.universe._
+
+
 /**
  * A `DataBag` implementation backed by a Scala `Traversable`.
  */
@@ -15,18 +19,18 @@ class ScalaTraversable[A] private[api](private val rep: Traversable[A]) extends 
   // Structural recursion
   // -----------------------------------------------------
 
-  override def fold[B: Meta](z: B)(s: A => B, p: (B, B) => B): B =
+  override def fold[B: Meta : ClassTag : TypeTag](z: B)(s: A => B, p: (B, B) => B): B =
     rep.foldLeft(z)((acc, x) => p(s(x), acc))
 
   // -----------------------------------------------------
   // Monad Ops
   // -----------------------------------------------------
 
-  override def map[B: Meta](f: (A) => B): DataBag[B] =
+  override def map[B: Meta : ClassTag : TypeTag](f: (A) => B): DataBag[B] =
     rep.map(f)
 
 
-  override def flatMap[B: Meta](f: (A) => DataBag[B]): DataBag[B] =
+  override def flatMap[B: Meta : ClassTag : TypeTag](f: (A) => DataBag[B]): DataBag[B] =
     rep.flatMap(x => f(x).fetch())
 
   def withFilter(p: (A) => Boolean): DataBag[A] =
@@ -36,7 +40,7 @@ class ScalaTraversable[A] private[api](private val rep: Traversable[A]) extends 
   // Grouping
   // -----------------------------------------------------
 
-  override def groupBy[K: Meta](k: (A) => K): DataBag[Group[K, DataBag[A]]] =
+  override def groupBy[K: Meta : ClassTag : TypeTag](k: (A) => K): DataBag[Group[K, DataBag[A]]] =
     rep.groupBy(k).toSeq.map { case (key, vals) => Group(key, wrap(vals)) }
 
   // -----------------------------------------------------
@@ -54,10 +58,10 @@ class ScalaTraversable[A] private[api](private val rep: Traversable[A]) extends 
   // Sinks
   // -----------------------------------------------------
 
-  def write[F <: io.Format : Meta](path: String, options: F#Config): Unit =
+  def write[F <: io.Format : Meta : ClassTag : TypeTag](path: String, options: F#Config): Unit =
     ioSupport[F].write(path)(rep)
 
-  override def write[F <: io.Format : Meta](path: String): Unit =
+  override def write[F <: io.Format : Meta : ClassTag : TypeTag](path: String): Unit =
     ioSupport[F].write(path)(rep)
 
   override def fetch(): Traversable[A] =
@@ -88,14 +92,14 @@ object ScalaTraversable {
   private implicit def wrap[A](rep: Traversable[A]): ScalaTraversable[A] =
     new ScalaTraversable(rep)
 
-  private implicit def ioSupport[F <: io.Format : Meta]: io.Support[F] = {
+  private implicit def ioSupport[F <: io.Format : Meta : ClassTag : TypeTag]: io.Support[F] = {
     // val ct = implicitly[ClassTag[F]]
     ???
   }
 
-  def apply[A: Meta]: ScalaTraversable[A] =
+  def apply[A: Meta : ClassTag : TypeTag]: ScalaTraversable[A] =
     new ScalaTraversable(Seq.empty)
 
-  def apply[A: Meta](values: Traversable[A]): ScalaTraversable[A] =
+  def apply[A: Meta : ClassTag : TypeTag](values: Traversable[A]): ScalaTraversable[A] =
     new ScalaTraversable(values)
 }

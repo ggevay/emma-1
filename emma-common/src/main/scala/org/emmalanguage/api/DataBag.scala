@@ -2,6 +2,11 @@ package org.emmalanguage.api
 
 import io.Format
 
+import scala.reflect.ClassTag
+import scala.reflect.ClassTag
+import scala.reflect.runtime.universe._
+
+
 /**
  * An abstraction for homogeneous collections.
  */
@@ -38,7 +43,7 @@ trait DataBag[A] extends Serializable {
    * @tparam B The result type of the recursive computation
    * @return
    */
-  def fold[B: Meta](z: B)(s: A => B, u: (B, B) => B): B
+  def fold[B: Meta : ClassTag : TypeTag](z: B)(s: A => B, u: (B, B) => B): B
 
   // -----------------------------------------------------
   // Monad Ops
@@ -51,7 +56,7 @@ trait DataBag[A] extends Serializable {
    * @tparam B Type of the output DataBag.
    * @return A DataBag containing the elements `f(x)` produced for each element x of the input.
    */
-  def map[B: Meta](f: (A) => B): DataBag[B]
+  def map[B: Meta : ClassTag : TypeTag](f: (A) => B): DataBag[B]
 
   /**
    * Monad flatMap.
@@ -60,7 +65,7 @@ trait DataBag[A] extends Serializable {
    * @tparam B Type of the output DataBag.
    * @return A DataBag containing the union (flattening) of the DataBags `f(x)` produced for each element of the input.
    */
-  def flatMap[B: Meta](f: (A) => DataBag[B]): DataBag[B]
+  def flatMap[B: Meta : ClassTag : TypeTag](f: (A) => DataBag[B]): DataBag[B]
 
   /**
    * Monad filter.
@@ -81,7 +86,7 @@ trait DataBag[A] extends Serializable {
    * @tparam K Key type.
    * @return A version of this bag with the entries grouped by key.
    */
-  def groupBy[K: Meta](k: (A) => K): DataBag[Group[K, DataBag[A]]]
+  def groupBy[K: Meta : ClassTag : TypeTag](k: (A) => K): DataBag[Group[K, DataBag[A]]]
 
   // -----------------------------------------------------
   // Set operations
@@ -121,7 +126,7 @@ trait DataBag[A] extends Serializable {
    * @param path The location where the data will be written.
    * @tparam F The format to be used when writing the data.
    */
-  def write[F <: Format : Meta](path: String, options: F#Config): Unit
+  def write[F <: Format : Meta : ClassTag : TypeTag](path: String, options: F#Config): Unit
 
   /**
    * Writes a DataBag into the specified `path` using a format `F` with (implicit) ad-hoc IO Support.
@@ -130,7 +135,7 @@ trait DataBag[A] extends Serializable {
    * @param path The location where the data will be written.
    * @tparam F The format to be used when writing the data.
    */
-  def write[F <: Format : Meta](path: String): Unit
+  def write[F <: Format : Meta : ClassTag : TypeTag](path: String): Unit
 
   /**
    * Converts a DataBag abstraction back into a scala sequence.
@@ -148,7 +153,7 @@ object DataBag {
    * @tparam A The element type for the DataBag.
    * @return An empty DataBag for elements of type A.
    */
-  def apply[A: Meta]: DataBag[A] = ScalaTraversable[A]
+  def apply[A: Meta : ClassTag : TypeTag]: DataBag[A] = ScalaTraversable[A]
 
   /**
    * Sequence constructor.
@@ -157,5 +162,5 @@ object DataBag {
    * @tparam A The element type for the DataBag.
    * @return A DataBag containing the elements of the `values` sequence.
    */
-  def apply[A: Meta](values: Seq[A]): DataBag[A] = ScalaTraversable(values)
+  def apply[A: Meta : ClassTag : TypeTag](values: Seq[A]): DataBag[A] = ScalaTraversable(values)
 }
