@@ -30,7 +30,7 @@ class SparkRDD[A: Meta] private[api](private val rep: RDD[A]) extends DataBag[A]
     rep.map(f)
 
   override def flatMap[B: Meta](f: (A) => DataBag[B]): DataBag[B] =
-    rep.flatMap(x => f(x).fetch())
+    rep.flatMap((x: A) => f(x).fetch())
 
   def withFilter(p: (A) => Boolean): DataBag[A] =
     rep.filter(p)
@@ -81,7 +81,7 @@ object SparkRDD {
 
   import MetaImplicits._
 
-  private implicit def wrap[A: Meta](rep: RDD[A]): SparkRDD[A] =
+  implicit def wrap[A: Meta](rep: RDD[A]): SparkRDD[A] =
     new SparkRDD(rep)
 
   def apply[A: Meta]()(implicit sc: SparkContext): SparkRDD[A] =

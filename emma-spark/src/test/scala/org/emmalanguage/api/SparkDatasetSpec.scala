@@ -79,13 +79,11 @@ class SparkDatasetSpec extends FreeSpec with Matchers with PropertyChecks with D
 
     "map" in {
       withSparkSession { implicit spark  =>
-        val act = for {
-          c <- SparkDataset(hhCrts)
-        } yield c.name
+        val act = SparkDataset(hhCrts)
+          .map(c => c.name)
 
-        val exp = for {
-          c <- hhCrts
-        } yield c.name
+        val exp = hhCrts
+          .map(c => c.name)
 
         act shouldEqual DataBag(exp)
       }
@@ -93,15 +91,11 @@ class SparkDatasetSpec extends FreeSpec with Matchers with PropertyChecks with D
 
   "flatMap" in {
     withSparkSession { implicit spark  =>
-      val act = for {
-        (b, cs) <- SparkDataset(Seq((hhBook, DataBag(hhCrts))))
-        c <- cs
-      } yield c.name
+      val act = SparkDataset(Seq((hhBook, hhCrts)))
+        .flatMap{ case (b, cs) => DataBag(cs)}
 
-      val exp = for {
-        (b, cs) <- Seq((hhBook, hhCrts))
-        c <- cs
-      } yield c.name
+      val exp = Seq((hhBook, hhCrts))
+        .flatMap{ case (b, cs) => cs}
 
       act shouldEqual DataBag(exp)
     }

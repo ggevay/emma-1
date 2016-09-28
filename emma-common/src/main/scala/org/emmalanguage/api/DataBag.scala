@@ -2,9 +2,6 @@ package org.emmalanguage.api
 
 import io.Format
 
-import scala.language.higherKinds
-import scala.reflect.ClassTag
-
 /**
  * An abstraction for homogeneous collections.
  */

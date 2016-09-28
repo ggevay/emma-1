@@ -17,6 +17,7 @@ class SparkRDDSpec extends FreeSpec with Matchers with PropertyChecks with DataB
         val ys = SparkRDD(hhCrts.map(_.book.title.length))
 
         // FIXME: these predicates have to be defined externally in order to be a serializable part of the fold closure
+        // FIXME: However, hard-coding the expanded version of the problematic folds (find, count) resolves the issue
         val p1 = (c: Character) => c.name startsWith "Zaphod"
         val p2 = (c: Character) => c.name startsWith "Ford"
         val p3 = (c: Character) => c.name startsWith "Marvin"
@@ -79,13 +80,11 @@ class SparkRDDSpec extends FreeSpec with Matchers with PropertyChecks with DataB
 
     "map" in {
       withSparkContext { implicit sc =>
-        val act = for {
-          c <- SparkRDD(hhCrts)
-        } yield c.name
+        val act = SparkRDD(hhCrts)
+          .map(c => c.name)
 
-        val exp = for {
-          c <- hhCrts
-        } yield c.name
+        val exp = hhCrts
+          .map(c => c.name)
 
         act shouldEqual DataBag(exp)
       }
@@ -93,22 +92,18 @@ class SparkRDDSpec extends FreeSpec with Matchers with PropertyChecks with DataB
 
   "flatMap" in {
     withSparkContext { implicit sc =>
-      val act = for {
-        (b, cs) <- SparkRDD(Seq((hhBook, DataBag(hhCrts))))
-        c <- cs
-      } yield c.name
+      val act = SparkRDD(Seq((hhBook, hhCrts)))
+        .flatMap { case (b, cs) => DataBag(cs) }
 
-      val exp = for {
-        (b, cs) <- Seq((hhBook, hhCrts))
-        c <- cs
-      } yield c.name
+      val exp = Seq((hhBook, hhCrts))
+        .flatMap { case (b, cs) => cs }
 
       act shouldEqual DataBag(exp)
     }
     }
 
     "withFilter" in {
-      withSparkContext { implicit sc =>
+      withSparkContext { implicit spark =>
         val act = SparkRDD(Seq(hhBook))
           .withFilter(_.title == "The Hitchhiker's Guide to the Galaxy")
 
