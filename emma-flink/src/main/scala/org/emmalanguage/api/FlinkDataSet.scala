@@ -1,21 +1,28 @@
 package org.emmalanguage
 package api
 
-import org.apache.spark.sql.{Dataset, SparkSession}
+import org.apache.flink.api.scala.{DataSet, ExecutionEnvironment}
 
 import scala.language.{higherKinds, implicitConversions}
 
-/** A `DataBag` implementation backed by a Spark `Dataset`. */
-class SparkDataset[A: Meta] private[api](private val rep: Dataset[A]) extends DataBag[A] {
+/** A `DataBag` implementation backed by a Flink `DataSet`. */
+class FlinkDataSet[A: Meta] private[api](private val rep: DataSet[A]) extends DataBag[A] {
 
-  import SparkDataset.{encoderForType, wrap}
+  import FlinkDataSet.{wrap, typeInformationForType}
 
   // -----------------------------------------------------
   // Structural recursion
   // -----------------------------------------------------
 
-  override def fold[B: Meta](z: B)(s: A => B, u: (B, B) => B): B =
-    rep.map(x => s(x)).reduce(u) // TODO: handle the empty Dataset case (maybe catch the exception?)
+  override def fold[B: Meta](z: B)(s: A => B, u: (B, B) => B): B = {
+    val collected = rep.map(x => s(x)).reduce(u).collect()
+    if (collected.isEmpty) {
+      z
+    } else {
+      assert(collected.size == 1)
+      collected.head
+    }
+  }
 
   // -----------------------------------------------------
   // Monad Ops
@@ -35,14 +42,17 @@ class SparkDataset[A: Meta] private[api](private val rep: Dataset[A]) extends Da
   // -----------------------------------------------------
 
   override def groupBy[K: Meta](k: (A) => K): DataBag[Group[K, DataBag[A]]] =
-    rdd.groupBy(k)
+    rep.groupBy(k).reduceGroup((it: Iterator[A]) => {
+      val buffer = it.toBuffer // This is because the iterator might not be serializable
+      Group(k(buffer.head), DataBag(buffer))
+    })
 
   // -----------------------------------------------------
   // Set operations
   // -----------------------------------------------------
 
   override def union(that: DataBag[A]): DataBag[A] = that match {
-    case dataset: SparkDataset[A] => this.rep union dataset.rep
+    case dataset: FlinkDataSet[A] => this.rep union dataset.rep
   }
 
   override def distinct: DataBag[A] =
@@ -60,29 +70,21 @@ class SparkDataset[A: Meta] private[api](private val rep: Dataset[A]) extends Da
 
   def fetch(): Seq[A] =
     rep.collect()
-
-  // -----------------------------------------------------
-  // Conversions
-  // -----------------------------------------------------
-
-  def rdd: SparkRDD[A] =
-    new SparkRDD(rep.rdd)
 }
 
-object SparkDataset {
+object FlinkDataSet {
 
-  import org.apache.spark.sql.Encoder
-  import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder
+  import org.apache.flink.api.common.typeinfo.TypeInformation
 
-  implicit def encoderForType[T: Meta]: Encoder[T] =
-    ExpressionEncoder[T]
+  implicit def typeInformationForType[T: Meta]: TypeInformation[T] =
+    org.apache.flink.api.scala.createTypeInformation
 
-  implicit def wrap[A: Meta](rep: Dataset[A]): SparkDataset[A] =
-    new SparkDataset(rep)
+  implicit def wrap[A: Meta](rep: DataSet[A]): FlinkDataSet[A] =
+    new FlinkDataSet(rep)
 
-  def apply[A: Meta]()(implicit spark: SparkSession): SparkDataset[A] =
-    spark.emptyDataset[A]
+  def apply[A: Meta]()(implicit flink: ExecutionEnvironment): FlinkDataSet[A] =
+    flink.fromElements[A]()
 
-  def apply[A: Meta](seq: Seq[A])(implicit spark: SparkSession): SparkDataset[A] =
-    spark.createDataset(seq)
+  def apply[A: Meta](seq: Seq[A])(implicit flink: ExecutionEnvironment): FlinkDataSet[A] =
+    flink.fromCollection(seq)
 }

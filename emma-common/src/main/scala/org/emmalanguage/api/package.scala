@@ -16,7 +16,6 @@ package object api {
 
   //@formatter:off
   trait Meta[T] extends Serializable {
-    type Type = T
     def ctag: ClassTag[T]
     def ttag: TypeTag[T]
   }
