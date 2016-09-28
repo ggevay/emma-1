@@ -44,11 +44,11 @@ class ScalaTraversable[A] private[api](private val rep: Traversable[A]) extends 
   // -----------------------------------------------------
 
   override def union(that: DataBag[A]): DataBag[A] = that match {
-    case rdd: ScalaTraversable[A] => this.rep union rdd.rep
+    case rdd: ScalaTraversable[A] => this.rep ++ rdd.rep
   }
 
   override def distinct: DataBag[A] =
-    rep.distinct
+    rep.toSeq.distinct
 
   // -----------------------------------------------------
   // Sinks
