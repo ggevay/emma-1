@@ -6,7 +6,7 @@ import org.apache.flink.api.scala.{DataSet, ExecutionEnvironment}
 import scala.language.{higherKinds, implicitConversions}
 
 /** A `DataBag` implementation backed by a Flink `DataSet`. */
-class FlinkDataSet[A: Meta] private[api](private val rep: DataSet[A]) extends DataBag[A] {
+class FlinkDataSet[A: Meta] private[api](@transient private val rep: DataSet[A]) extends DataBag[A] {
 
   import FlinkDataSet.{typeInfoForType, wrap}
 
