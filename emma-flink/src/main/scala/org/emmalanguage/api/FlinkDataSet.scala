@@ -1,18 +1,14 @@
 package org.emmalanguage
 package api
 
-import org.apache.flink.api.common.ExecutionConfig
-import org.apache.flink.api.common.typeutils.TypeSerializer
 import org.apache.flink.api.scala.{DataSet, ExecutionEnvironment}
 
 import scala.language.{higherKinds, implicitConversions}
 
-import java.io.{ObjectInputStream, ObjectOutputStream}
-
 /** A `DataBag` implementation backed by a Flink `DataSet`. */
 class FlinkDataSet[A: Meta] private[api](private val rep: DataSet[A]) extends DataBag[A] {
 
-  import FlinkDataSet.{wrap, typeInfoForType}
+  import FlinkDataSet.{typeInfoForType, wrap}
 
   // -----------------------------------------------------
   // Structural recursion
@@ -80,64 +76,36 @@ class FlinkDataSet[A: Meta] private[api](private val rep: DataSet[A]) extends Da
 object FlinkDataSet {
 
   import org.apache.flink.api.common.typeinfo.TypeInformation
+
   import scala.reflect.runtime.currentMirror
   import scala.reflect.runtime.universe._
   import scala.tools.reflect.ToolBox
 
-  import java.io.IOException
+  import java.nio.file.{Files, Paths}
+
+  private lazy val codeGenDirDefault = Paths
+    .get(sys.props("java.io.tmpdir"), "emma", "codegen")
+    .toAbsolutePath.toString
+
+  /** The directory where the toolbox will store runtime-generated code. */
+  private lazy val codeGenDir = {
+    val path = Paths.get(sys.props.getOrElse("emma.codegen.dir", codeGenDirDefault))
+    // Make sure that generated class directory exists
+    Files.createDirectories(path)
+    path.toAbsolutePath.toString
+  }
 
   private lazy val flinkApi = currentMirror.staticModule("org.apache.flink.api.scala.package")
   private lazy val typeInfo = flinkApi.info.decl(TermName("createTypeInformation"))
-  private lazy val toolbox = currentMirror.mkToolBox()
+  private lazy val toolbox = currentMirror.mkToolBox(options = s"-d $codeGenDir")
 
-  class SynthesizedTypeInfo[T: TypeTag] extends TypeInformation[T] {
+  private lazy val memo = collection.mutable.Map.empty[Any, Any]
 
-    val tpe = implicitly[TypeTag[T]].tpe
-
-    @transient var imp: TypeInformation[T] = toolbox.eval(q"$typeInfo[$tpe]").asInstanceOf[TypeInformation[T]]
-
-    override def isBasicType: Boolean =
-      imp.isBasicType
-
-    override def canEqual(obj: scala.Any): Boolean =
-      imp.canEqual(obj)
-
-    override def getTotalFields: Int =
-      imp.getTotalFields
-
-    override def createSerializer(config: ExecutionConfig): TypeSerializer[T] =
-      imp.createSerializer(config)
-
-    override def getArity: Int =
-      imp.getArity
-
-    override def isKeyType: Boolean =
-      imp.isKeyType
-
-    override def getTypeClass: Class[T] =
-      imp.getTypeClass
-
-    override def isTupleType: Boolean =
-      imp.isTupleType
-
-    override def toString: String =
-      imp.toString
-
-    override def equals(obj: Any): Boolean =
-      imp equals obj
-
-    override def hashCode(): Int =
-      imp.hashCode()
-
-    @throws(classOf[IOException])
-    private def readObject(in: ObjectInputStream): Unit = {
-      in.defaultReadObject()
-      imp = toolbox.eval(q"$typeInfo[$tpe]").asInstanceOf[TypeInformation[T]]
-    }
+  implicit def typeInfoForType[T: Meta]: TypeInformation[T] = {
+    val ttag = implicitly[TypeTag[T]]
+    val info = memo.getOrElseUpdate(ttag, toolbox.eval(q"$typeInfo[${ttag.tpe}]")).asInstanceOf[TypeInformation[T]]
+    info
   }
-
-  implicit def typeInfoForType[T: Meta]: TypeInformation[T] =
-    new SynthesizedTypeInfo[T]
 
   implicit def wrap[A: Meta](rep: DataSet[A]): FlinkDataSet[A] =
     new FlinkDataSet(rep)
