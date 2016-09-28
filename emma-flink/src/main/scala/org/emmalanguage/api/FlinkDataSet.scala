@@ -12,6 +12,8 @@ import scala.reflect.runtime.universe._
 /** A `DataBag` implementation backed by a Flink `DataSet`. */
 class FlinkDataSet[A: Meta : ClassTag : TypeTag] private[api](private val rep: DataSet[A]) extends DataBag[A] {
 
+  override type TypeClass[T] = TypeInformation[T]
+
   import FlinkDataSet.{wrap}
 
   import org.apache.flink.api.scala._
@@ -20,13 +22,13 @@ class FlinkDataSet[A: Meta : ClassTag : TypeTag] private[api](private val rep: D
   // Structural recursion
   // -----------------------------------------------------
 
-  override def fold[B: Meta : ClassTag : TypeTag](z: B)(s: A => B, u: (B, B) => B): B = {
+  override def fold[B: Meta : ClassTag : TypeTag: WeakTypeTag: TypeClass](z: B)(s: A => B, u: (B, B) => B): B = {
 
     //
 //    import scala.reflect.runtime.universe._
 //    val ctag = implicitly[ClassTag[B]]
 //    val ttag = implicitly[TypeTag[B]]
-//    val typeInfo = implicitly[TypeInformation[B]]
+    val typeInfo = implicitly[TypeInformation[B]]
     //
 
     val collected = rep.map(x => s(x)).reduce(u).collect()

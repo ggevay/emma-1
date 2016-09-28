@@ -6,6 +6,8 @@ import scala.reflect.ClassTag
 import scala.reflect.ClassTag
 import scala.reflect.runtime.universe._
 
+import scala.language.higherKinds
+
 
 /**
  * An abstraction for homogeneous collections.
@@ -15,6 +17,8 @@ trait DataBag[A] extends Serializable {
   // -----------------------------------------------------
   // Structural recursion
   // -----------------------------------------------------
+
+  type TypeClass[_]
 
   /**
    * Structural recursion over the bag.
@@ -43,7 +47,7 @@ trait DataBag[A] extends Serializable {
    * @tparam B The result type of the recursive computation
    * @return
    */
-  def fold[B: Meta : ClassTag : TypeTag](z: B)(s: A => B, u: (B, B) => B): B
+  def fold[B: Meta : ClassTag : TypeTag: WeakTypeTag: TypeClass](z: B)(s: A => B, u: (B, B) => B): B
 
   // -----------------------------------------------------
   // Monad Ops

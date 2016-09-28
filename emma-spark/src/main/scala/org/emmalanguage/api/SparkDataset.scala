@@ -17,7 +17,7 @@ class SparkDataset[A: Meta : ClassTag : TypeTag] private[api](private val rep: D
   // Structural recursion
   // -----------------------------------------------------
 
-  override def fold[B: Meta : ClassTag : TypeTag](z: B)(s: A => B, u: (B, B) => B): B =
+  override def fold[B: Meta : ClassTag : TypeTag: WeakTypeTag](z: B)(s: A => B, u: (B, B) => B): B =
     rep.map(x => s(x)).reduce(u) // TODO: handle the empty Dataset case (maybe catch the exception?)
 
   // -----------------------------------------------------

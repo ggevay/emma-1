@@ -13,13 +13,15 @@ import scala.reflect.runtime.universe._
  */
 class ScalaTraversable[A] private[api](private val rep: Traversable[A]) extends DataBag[A] {
 
+  override type TypeClass[_] = Unit
+
   import ScalaTraversable.{wrap, ioSupport}
 
   // -----------------------------------------------------
   // Structural recursion
   // -----------------------------------------------------
 
-  override def fold[B: Meta : ClassTag : TypeTag](z: B)(s: A => B, p: (B, B) => B): B =
+  override def fold[B: Meta : ClassTag : TypeTag: WeakTypeTag: TypeClass](z: B)(s: A => B, p: (B, B) => B): B =
     rep.foldLeft(z)((acc, x) => p(s(x), acc))
 
   // -----------------------------------------------------
@@ -96,6 +98,8 @@ object ScalaTraversable {
     // val ct = implicitly[ClassTag[F]]
     ???
   }
+
+  implicit def implUnit: Unit = ()
 
   def apply[A: Meta : ClassTag : TypeTag]: ScalaTraversable[A] =
     new ScalaTraversable(Seq.empty)
