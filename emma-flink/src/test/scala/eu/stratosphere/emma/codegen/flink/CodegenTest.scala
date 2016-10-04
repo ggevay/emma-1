@@ -16,8 +16,8 @@
 package eu.stratosphere
 package emma.codegen.flink
 
-import emma.codegen.BaseCodegenTest
 import emma.runtime.Flink
+import org.emmalanguage.codegen.BaseCodegenTest
 
 class CodegenTest extends BaseCodegenTest("flink") {
 
