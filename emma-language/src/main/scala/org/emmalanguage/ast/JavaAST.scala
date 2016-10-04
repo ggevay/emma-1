@@ -35,7 +35,7 @@ trait JavaAST extends AST {
     s"Unsupported universe ${runtime.universe}.\nThe runtime compiler supports only JVM.")
 
   override val universe = runtime.universe.asInstanceOf[JavaUniverse]
-  val tb: ToolBox[universe.type]
+  protected val tb: ToolBox[universe.type]
 
   import universe._
   import internal._

@@ -38,7 +38,7 @@ class RuntimeCompiler extends Compiler with JavaAST {
   }
 
   /** The generating Scala toolbox. */
-  override val tb = {
+  protected override val tb = {
     val cl = getClass.getClassLoader
     val factory = new ToolBoxFactory[universe.type](universe) {
       val mirror = runtimeMirror(cl)
