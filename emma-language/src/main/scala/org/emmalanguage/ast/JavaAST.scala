@@ -56,8 +56,15 @@ trait JavaAST extends AST {
   private[emmalanguage] override def parse(code: String): Tree =
     tb.parse(code)
 
-  private[emmalanguage] override def typeCheck(tree: Tree, typeMode: Boolean = false): Tree =
-    if (typeMode) tb.typecheck(tree, tb.TYPEmode) else tb.typecheck(tree)
+  private[emmalanguage] override def typeCheck(tree: Tree, typeMode: Boolean = false): Tree = {
+    try {
+      if (typeMode) tb.typecheck(tree, tb.TYPEmode) else tb.typecheck(tree)
+    } catch {
+      case ex: scala.tools.reflect.ToolBoxError =>
+        throw scala.tools.reflect.ToolBoxError(
+          s"Typecheck failed for tree:\n================\n${api.Tree.show(tree)}\n================\n", ex)
+    }
+  }
 
   private[emmalanguage] override def inferImplicit(tpe: Type): Tree =
     tb.inferImplicitValue(tpe)
