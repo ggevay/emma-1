@@ -353,9 +353,12 @@ trait Trees { this: AST =>
         Id(target)
       }
 
-      def unapply(ref: u.Ident): Option[u.Symbol] = ref match {
-        case Id(target) if !is.method(target) && !is.pkg(target) => Some(target)
-        case _ => None
+      def unapply(ref: u.Ident): Option[u.Symbol] = {
+        val xxxxxxxxxxxx = ref
+        ref match {
+          case Id(target) if !is.method(target) && !is.pkg(target) => Some(target)
+          case _ => None
+        }
       }
     }
 

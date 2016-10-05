@@ -55,6 +55,15 @@ class RuntimeCompiler extends Compiler with JavaAST {
         factory.mkToolBox(options = s"-d $codeGenDir")
     }
   }
+
+  /**
+   * Compiles and runs a tree.
+   * (It is like Toolbox.eval, but also works on already typechecked trees.)
+   */
+  def eval(tree: u.Tree): Any = {
+    val showed = api.Tree.show(tree)
+    compile(tb.parse(showed))() // Note: we couldn't call api.Tree.parse here, because that also does typechecking
+  }
 }
 
 object RuntimeCompiler {
