@@ -117,7 +117,7 @@ trait DataBag[A] extends Serializable {
    * Removes duplicate entries from the bag, e.g.
    *
    * {{{
-   * DataBag(Seq(1,1,2,3)).distinct() = DataBag(Seq(1,2,3))
+   * DataBag(Seq(1,1,2,3)).distinct = DataBag(Seq(1,2,3))
    * }}}
    *
    * @return A version of this DataBag without duplicate entries.
@@ -157,7 +157,7 @@ object DataBag {
    * @tparam A The element type for the DataBag.
    * @return An empty DataBag for elements of type A.
    */
-  def apply[A: Meta]: DataBag[A] = ScalaTraversable[A]
+  def apply[A: Meta](): DataBag[A] = ScalaTraversable[A]
 
   /**
    * Sequence constructor.
@@ -166,7 +166,7 @@ object DataBag {
    * @tparam A The element type for the DataBag.
    * @return A DataBag containing the elements of the `values` sequence.
    */
-  def apply[A: Meta](values: Seq[A]): DataBag[A] = ScalaTraversable(values)
+  def apply[A: Meta](values: Traversable[A]): DataBag[A] = ScalaTraversable(values)
 
   /**
    * Reads a DataBag into the specified `path` using in a CSV format.

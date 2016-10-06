@@ -16,9 +16,11 @@
 package org.emmalanguage.codegen
 
 import org.emmalanguage.compiler.BaseCompilerSpec
+import org.emmalanguage.io.csv.CSV
 import org.emmalanguage.test.schema.Graphs._
 import org.emmalanguage.test.schema.Movies._
-import eu.stratosphere.emma.api._
+//import eu.stratosphere.emma.api._
+import org.emmalanguage.api._
 import eu.stratosphere.emma.runtime
 import eu.stratosphere.emma.testutil._
 
@@ -113,6 +115,7 @@ abstract class BaseCodegenTest(rtName: String)
 
     "case classes" in verify(u.reify {
       DataBag(imdb)
+      //DataBag.apply[ImdbMovie](imdb)(meta[ImdbMovie])
         .withFilter { _.year > 1980 }
         .withFilter { _.title.length > 10 }
     })
@@ -225,17 +228,17 @@ abstract class BaseCodegenTest(rtName: String)
 
   "Distinct" - {
     "strings" in verify(u.reify {
-      DataBag(jabberwocky flatMap { _ split "\\W+" }).distinct()
+      DataBag(jabberwocky flatMap { _ split "\\W+" }).distinct
     })
 
     "tuples" in verify(u.reify {
-      DataBag(jabberwocky.flatMap { _ split "\\W+" } map {(_,1)}).distinct()
+      DataBag(jabberwocky.flatMap { _ split "\\W+" } map {(_,1)}).distinct
     })
   }
 
   "Union" in {
     verify(u.reify {
-      DataBag(jabberwockyEven) plus DataBag(jabberwockyOdd)
+      DataBag(jabberwockyEven) union DataBag(jabberwockyOdd)
     })
   }
 
@@ -274,7 +277,7 @@ abstract class BaseCodegenTest(rtName: String)
         if (movie.title, movie.year) == (winner.title, winner.year)
       } yield ("Berlin", movie.year, winner.title)
 
-      berlinTop100 plus cannesTop100
+      berlinTop100 union cannesTop100
     })
 
     "multi-way on primitives" in verify(u.reify {
@@ -330,7 +333,7 @@ abstract class BaseCodegenTest(rtName: String)
       val semiFinal = 8
       val bag = DataBag(new Random shuffle 0.until(100).toList)
       val top = for (g <- bag groupBy { _ % semiFinal })
-        yield g.values.fetch().sorted.take(semiFinal / 2).sum
+        yield g.values.fetch().toSeq.sorted.take(semiFinal / 2).sum
 
       top.max
     })
@@ -400,7 +403,7 @@ abstract class BaseCodegenTest(rtName: String)
 
   "Fold" - {
     "of an empty DataBag (nonEmpty)" in verify(u.reify {
-      (DataBag().nonEmpty, DataBag(1 to 3).nonEmpty)
+      //(DataBag[Int]().nonEmpty, DataBag(1 to 3).nonEmpty)
     })
 
     "of primitives (fold)" in verify(u.reify {
@@ -521,7 +524,7 @@ abstract class BaseCodegenTest(rtName: String)
       val times2 = for { x <- DataBag(1 to 100) } yield double(x)
       val increment5 = for { x <- DataBag(1 to 100) } yield add(x, 5)
 
-      times2 plus increment5
+      times2 union increment5
     })
   }
 
@@ -568,7 +571,7 @@ abstract class BaseCodegenTest(rtName: String)
       val bs = DataBag(101 to 200) flatMap { _ => DataBag(2 to 4) } // flatMap
       val cs = for { x <- DataBag(201 to 300) if 5 == 1 } yield 5 // filter
       val ds = DataBag(301 to 400) withFilter { _ => true } // filter
-      as plus bs plus cs plus ds
+      as union bs union cs union ds
     })
 
     "Updated tmp sink (sieve of Eratosthenes)" in verify(u.reify {
@@ -599,12 +602,12 @@ abstract class BaseCodegenTest(rtName: String)
         primes map { _._1 }
       }
 
-      positive plus negative
+      positive union negative
     })
 
     "val destructuring" in verify(u.reify {
       val resource = materializeResource("/cinema/imdb.csv")
-      val imdbTop100 = read(resource, new CSVInputFormat[ImdbMovie])
+      val imdbTop100 = DataBag.readCSV[ImdbMovie](resource, CSV())
       val ratingsPerDecade = for {
         group <- imdbTop100.groupBy(mov => (mov.year / 10, mov.rating.round))
       } yield {
@@ -624,14 +627,11 @@ abstract class BaseCodegenTest(rtName: String)
 object BaseCodegenTest {
   lazy val jabberwocky = fromPath(materializeResource("/lyrics/Jabberwocky.txt"))
 
-  lazy val imdb = read(materializeResource("/cinema/imdb.csv"),
-    new CSVInputFormat[ImdbMovie]).fetch()
+  lazy val imdb = DataBag.readCSV[ImdbMovie](materializeResource("/cinema/imdb.csv"), CSV()).fetch()
 
-  lazy val cannes = read(materializeResource("/cinema/canneswinners.csv"),
-    new CSVInputFormat[FilmFestWinner]).fetch()
+  lazy val cannes = DataBag.readCSV[FilmFestWinner](materializeResource("/cinema/canneswinners.csv"), CSV()).fetch()
 
-  lazy val berlin = read(materializeResource("/cinema/berlinalewinners.csv"),
-    new CSVInputFormat[FilmFestWinner]).fetch()
+  lazy val berlin = DataBag.readCSV[FilmFestWinner](materializeResource("/cinema/berlinalewinners.csv"), CSV()).fetch()
 
   val (jabberwockyEven, jabberwockyOdd) = jabberwocky
     .flatMap { _ split "\\W+" }

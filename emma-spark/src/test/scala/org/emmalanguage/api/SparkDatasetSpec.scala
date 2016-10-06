@@ -28,7 +28,7 @@ class SparkDatasetSpec extends DataBagSpec {
   override def withBackendContext[T](f: BackendContext => T): T =
     LocalSparkSession.withSparkSession(f)
 
-  override def Bag[A: Meta](implicit spark: SparkSession): Bag[A] =
+  override def Bag[A: Meta]()(implicit spark: SparkSession): Bag[A] =
     SparkDataset[A]
 
   override def Bag[A: Meta](seq: Seq[A])(implicit spark: SparkSession): Bag[A] =

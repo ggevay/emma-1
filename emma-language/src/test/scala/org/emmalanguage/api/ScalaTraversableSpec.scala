@@ -26,7 +26,7 @@ class ScalaTraversableSpec extends DataBagSpec {
   override def withBackendContext[T](f: BackendContext => T): T =
     f(Unit)
 
-  override def Bag[A: Meta](implicit unit: BackendContext): Bag[A] =
+  override def Bag[A: Meta]()(implicit unit: BackendContext): Bag[A] =
     ScalaTraversable[A]
 
   override def Bag[A: Meta](seq: Seq[A])(implicit unit: BackendContext): Bag[A] =
