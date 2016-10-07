@@ -64,6 +64,17 @@ trait Compiler extends AlphaEq with Source with Core with Backend {
     bld ++= transformations
     if (withPost)  bld ++= postProcess
     //@formatter:on
-    Function.chain(bld.result())
+    Function.chain(bld.result().map(addPrint))
   }
+
+
+  def addPrint(trans: u.Tree => u.Tree): u.Tree => u.Tree = {
+    (tree: u.Tree) => {
+      println("=============================")
+      println(u.showCode(tree))
+      println("=============================")
+      trans(tree)
+    }
+  }
+
 }
