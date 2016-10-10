@@ -29,6 +29,8 @@ class SparkRDD[A: Meta] private[api](@transient private val rep: RDD[A])(implici
 
   import SparkRDD.{encoderForType, wrap}
 
+  import DataBag._
+
   // -----------------------------------------------------
   // Structural recursion
   // -----------------------------------------------------
@@ -91,6 +93,8 @@ object SparkRDD {
 
   import org.apache.spark.sql.Encoder
   import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder
+
+  import DataBag._
 
   implicit def encoderForType[T: Meta]: Encoder[T] =
     ExpressionEncoder[T]

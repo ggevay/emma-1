@@ -18,8 +18,13 @@ package api
 
 import io.csv.{CSV, CSVConverter}
 
+import scala.reflect.ClassTag
+import scala.reflect.runtime.universe._
+
 /** An abstraction for homogeneous distributed collections. */
 trait DataBag[A] extends Serializable {
+
+  import DataBag._
 
   // -----------------------------------------------------
   // Structural recursion
@@ -176,4 +181,12 @@ object DataBag {
    * @tparam A the type of elements to read.
    */
   def readCSV[A: Meta : CSVConverter](path: String, format: CSV): DataBag[A] = ScalaTraversable.readCSV[A](path, format)
+
+
+  implicit def ttagForType[T: Meta]: TypeTag[T] =
+    implicitly[Meta[T]].ttag
+
+  implicit def ctagForType[T: Meta]: ClassTag[T] =
+    implicitly[Meta[T]].ctag
+
 }

@@ -30,23 +30,9 @@ package object api {
   // types supported by Emma
   // -----------------------------------------------------
 
-  //@formatter:off
-  trait Meta[T] extends Serializable {
-    def ctag: ClassTag[T]
-    def ttag: TypeTag[T]
-  }
+  case class Meta[T](implicit val ctag: ClassTag[T], implicit val ttag: TypeTag[T])
 
-  implicit def meta[T : ClassTag : TypeTag] = new Meta[T] {
-    override def ctag = implicitly[ClassTag[T]]
-    override def ttag = implicitly[TypeTag[T]]
-  }
-  //@formatter:on
-
-  implicit def ttagForType[T: Meta]: TypeTag[T] =
-    implicitly[Meta[T]].ttag
-
-  implicit def ctagForType[T: Meta]: ClassTag[T] =
-    implicitly[Meta[T]].ctag
+  implicit def meta[T : ClassTag : TypeTag] = Meta[T]
 
   // -----------------------------------------------------
   // limits

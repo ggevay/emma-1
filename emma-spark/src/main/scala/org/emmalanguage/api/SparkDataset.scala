@@ -26,6 +26,7 @@ import scala.language.{higherKinds, implicitConversions}
 class SparkDataset[A: Meta] private[api](@transient private val rep: Dataset[A]) extends DataBag[A] {
 
   import SparkDataset.{encoderForType, wrap}
+  import DataBag._
 
   // -----------------------------------------------------
   // Structural recursion
@@ -95,6 +96,8 @@ object SparkDataset {
 
   import org.apache.spark.sql.Encoder
   import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder
+
+  import DataBag._
 
   implicit def encoderForType[T: Meta]: Encoder[T] =
     ExpressionEncoder[T]

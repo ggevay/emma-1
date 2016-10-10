@@ -28,6 +28,8 @@ class FlinkDataSet[A: Meta] private[api](@transient private val rep: DataSet[A])
 
   import FlinkDataSet.{typeInfoForType, wrap}
 
+  import DataBag._
+
   // -----------------------------------------------------
   // Structural recursion
   // -----------------------------------------------------
@@ -104,6 +106,8 @@ object FlinkDataSet {
 
   import util.Toolbox.universe._
   import util.Toolbox.{mirror, toolbox}
+
+  import DataBag._
 
   private lazy val flinkApi = mirror.staticModule("org.apache.flink.api.scala.package")
   private lazy val typeInfo = flinkApi.info.decl(TermName("createTypeInformation"))
