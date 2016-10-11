@@ -33,4 +33,8 @@ package object codegen {
     LabelledEdge(1, 4, "A"),
     LabelledEdge(2, 5, "B"),
     LabelledEdge(3, 6, "C"))
+
+
+
+  case class ImdbMovie(title: String, rating: Double, rank: Int, link: String, year: Int)
 }
