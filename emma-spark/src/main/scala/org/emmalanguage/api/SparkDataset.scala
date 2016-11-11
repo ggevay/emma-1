@@ -135,6 +135,12 @@ class SparkDataset[A: Meta] private[api](@transient private[api] val rep: Datase
 
   private def rdd: SparkRDD[A] =
     new SparkRDD(rep.rdd)(implicitly[Meta[A]], rep.sparkSession)
+
+  // -----------------------------------------------------
+  // Persist
+  // -----------------------------------------------------
+
+  def persist(): DataBag[A] = rep.cache()
 }
 
 object SparkDataset {

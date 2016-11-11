@@ -128,6 +128,12 @@ class SparkRDD[A: Meta] private[api](@transient private[api] val rep: RDD[A])(im
     h = MurmurHash3.mixLast(h, c)
     MurmurHash3.finalizeHash(h, n)
   }
+
+  // -----------------------------------------------------
+  // Persist
+  // -----------------------------------------------------
+
+  def persist(): DataBag[A] = rep.cache()
 }
 
 object SparkRDD {

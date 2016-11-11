@@ -76,13 +76,24 @@ trait Compiler extends AlphaEq
     val steps = bld.result()
 
     if (!printAllTrees) Function.chain(steps)
-    else Function.chain(List(print) ++ steps.flatMap(List(_, print)))
+    else Function.chain(List(printPipelineStart, printTree) ++ steps.flatMap(List(_, printTree)))
   }
 
-  // Turn this on to print the tree between every step in the pipeline (also before the first and after the last step).
-  val printAllTrees = false
+  // -----------------------------------------------------
+  // Debugging
+  // -----------------------------------------------------
 
-  lazy val print: u.Tree => u.Tree = {
+  // Turn this on to print the tree between every step in the pipeline (also before the first and after the last steps).
+  private val printAllTrees = true
+
+  private lazy val printPipelineStart: u.Tree => u.Tree = {
+    (tree: u.Tree) => {
+      println("################## Starting compilation pipeline ##################")
+      tree
+    }
+  }
+
+  private lazy val printTree: u.Tree => u.Tree = {
     (tree: u.Tree) => {
       println("=============================")
       println(u.showCode(tree))

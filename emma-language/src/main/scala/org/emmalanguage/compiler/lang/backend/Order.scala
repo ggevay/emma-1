@@ -106,7 +106,8 @@ private[backend] trait Order extends Common {
         // Funs given as arguments to combinators (combRefs)
         .accumulateWith[Vector[u.TermSymbol]] {
           case Attr.inh(api.ValRef(sym), insideCombinator :: _)
-            if insideCombinator && (funs contains sym) => Vector(sym)
+            if insideCombinator && (funs contains sym) =>
+            Vector(sym)
         }
         // Funs referenced from top-level (topLevRefs)
         .accumulateWith[Vector[u.TermSymbol]] {

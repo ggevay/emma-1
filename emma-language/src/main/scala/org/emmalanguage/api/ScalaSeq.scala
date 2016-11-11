@@ -84,6 +84,11 @@ class ScalaSeq[A] private[api](private[api] val rep: Seq[A]) extends DataBag[A] 
   override val fetch: Seq[A] =
     rep
 
+  // -----------------------------------------------------
+  // Persist
+  // -----------------------------------------------------
+
+  override def persist(): DataBag[A] = this
 }
 
 object ScalaSeq {

@@ -335,6 +335,22 @@ trait DataBag[A] extends Serializable {
   override def hashCode(): Int =
     scala.util.hashing.MurmurHash3.unorderedHash(fetch())
 
+  // -----------------------------------------------------
+  // Persist
+  // -----------------------------------------------------
+
+  /**
+   * Stores the DataBag on the cluster,
+   * so that using it multiple times won't involve re-doing the computation that produces it.
+   *
+   * Note: Users usually don't have to directly call this function, because persist calls are
+   * automatically inserted by the compilation process where necessary.
+   *
+   * Warning: You have to use the returned DataBag, otherwise DCE eliminates the persist call.
+   *
+   * @return A DataBag that has the same elements as the original, but is stored in the cluster.
+   */
+  def persist(): DataBag[A]
 }
 
 object DataBag {

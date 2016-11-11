@@ -23,7 +23,7 @@ import util.Monoids
 
 import shapeless._
 
-/** Translating to dataflows. */
+/** Translating DataBag programs to dataflow APIs, like Flink DataSets or Spark RDDs. */
 private[backend] trait TranslateToDataflows extends Common {
   self: Backend with Core =>
 
@@ -37,7 +37,7 @@ private[backend] trait TranslateToDataflows extends Common {
      *
      * == Preconditions ==
      *
-     * - The input tree is in Core.
+     * - The input tree is in Core, but without comprehensions.
      *
      * == Postconditions ==
      *
@@ -82,11 +82,19 @@ private[backend] trait TranslateToDataflows extends Common {
         .traverseAny(staticCallsChanged)
 
       // Insert fetch calls for the vals in valsRefdFromHigh (but only if they are defined at first-order)
-      val collectsInserted0 =
+      /*
+        val $lhs = $rhs
+        ==>
+        val $lhs = {
+          val orig = $rhs
+          val fetched = ScalaSeq.byFetch(orig)
+          fetched
+        }
+       */
+      val fetchesInserted =
         withHighContext.transformWith {
           case Attr.inh(api.ValDef(lhs, rhs, flags), false :: _)
-          if valsRefdFromHigh(lhs)
-          => {
+          if valsRefdFromHigh(lhs) =>
             val origSym = api.TermSym(lhs, api.TermName.fresh("orig"), api.Type.of(lhs)) // will be the original bag
             val fetchCall = core.DefCall(Some(api.ModuleRef(API.scalaSeqModuleSymbol))) (
               API.byFetch,
@@ -98,10 +106,65 @@ private[backend] trait TranslateToDataflows extends Common {
               lhs,
               core.Let(api.ValDef(origSym, rhs), fetchedVal)()(core.ValRef(fetchedSym)),
               flags) // Note: the flags are present also here, and on fetchedVal.
-          }
         }(staticCallsChanged).tree
 
-      Core.flatten(collectsInserted0) // This is because we put a Let on the rhs of a ValDef when inserting collects
+      // Gather symbols that should be persisted. These are:
+      //  TODO
+      val Attr.acc(_, toPersist :: _) =
+        api.TopDown.withValUses
+        // Innermost enclosing loop
+        .inherit {
+          case core.DefDef(method,_,_,_,_) if method.name.toString.matches("""(while|doWhile)\$.*""") =>
+            method
+        }(Monoids.right(null))
+        // Map from ValDefs to their innermost enclosing loops
+        .accumulateWith[Map[u.TermSymbol, u.MethodSymbol]] {
+          case Attr.inh(core.ValDef(sym, _, _), enclLoop :: _)
+            if api.Type.of(sym).typeConstructor =:= API.DataBag =>
+            Map(sym -> enclLoop)
+        }(Monoids.overwrite)
+        // Symbols which should be persisted
+        .accumulateWith[Set[u.TermSymbol]] {
+          case Attr.all(api.ValRef(sym), _ :: valEnclLoops :: _, enclLoop :: _, valUses :: _)
+            if api.Type.of(sym).typeConstructor =:= API.DataBag &&
+              (valUses(sym) > 1 || enclLoop != valEnclLoops(sym)) =>
+            Set(sym)
+          case Attr.none(api.DefCall(_, method, _, argss@_*))
+            if method.name.toString.matches("""(while|doWhile)\$.*""") =>
+            argss.flatMap {x => x.flatMap {
+              case api.ValRef(sym)
+                if api.Type.of(sym).typeConstructor =:= API.DataBag => Seq(sym)
+              case _ => Seq()
+            }}.toSet
+        }
+        .traverseAny(fetchesInserted)
+
+      // Insert persist calls
+      /*
+      val $lhs = $rhs
+      ==>
+      val $lhs = {
+        val orig = $rhs
+        val persisted = orig.persist
+        persisted
+      }
+       */
+      val persistsInserted =
+        withHighContext.transformWith {
+          case Attr.inh(api.ValDef(lhs, rhs, flags), false :: _)
+            if toPersist(lhs) =>
+              val origSym = api.TermSym(lhs, api.TermName.fresh("orig"), api.Type.of(lhs)) // will be the original bag
+              val persistCall = core.DefCall(Some(core.ValRef(origSym)))(API.persist)()
+              val persistedSym = api.TermSym(lhs, api.TermName.fresh("persisted"), api.Type.of(persistCall))
+              val persistedVal = core.ValDef(persistedSym, persistCall, flags)
+              core.ValDef(
+                lhs,
+                core.Let(api.ValDef(origSym, rhs), persistedVal)()(core.ValRef(persistedSym)),
+                flags) // Note: the flags are present also here, and on persistedVal.
+        }(fetchesInserted).tree
+
+      // The flatten is needed because we put a Lets on the rhs of ValDefs when inserting collects and persists
+      Core.flatten(persistsInserted)
     }
 
   }

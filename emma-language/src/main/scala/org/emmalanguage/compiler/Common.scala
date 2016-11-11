@@ -77,6 +77,7 @@ trait Common extends AST {
     val bottom                = bagSymbol.info.decl(TermName("bottom"))
     val top                   = bagSymbol.info.decl(TermName("top"))
     val sample                = bagSymbol.info.decl(TermName("sample"))
+    val persist               = bagSymbol.info.decl(TermName("persist")).asMethod
 
     val sourceOps             = Set(empty, apply, readCSV); assertOneOverload(sourceOps)
     val sinkOps               = Set(fetch, writeCSV)
@@ -93,9 +94,10 @@ trait Common extends AST {
       find, top, bottom,
       sample
     )
+    val miscOps               = Set(persist)
 
     val ops                   =  for {
-      m <- sourceOps ++ sinkOps ++ monadOps ++ nestOps ++ setOps ++ foldOps
+      m <- sourceOps ++ sinkOps ++ monadOps ++ nestOps ++ setOps ++ foldOps ++ miscOps
       a <- m.alternatives
     } yield m
 

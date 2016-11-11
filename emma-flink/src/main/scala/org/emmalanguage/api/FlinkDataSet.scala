@@ -18,9 +18,11 @@ package api
 
 import io.csv.{CSV, CSVConverter}
 import compiler.RuntimeCompiler
+import org.emmalanguage.runtime.TempResultsManager
 
 import org.apache.flink.api.scala.{DataSet, ExecutionEnvironment => FlinkEnv}
 import org.apache.flink.core.fs.FileSystem
+import org.apache.flink.core.fs.FileSystem.WriteMode
 
 import scala.language.{higherKinds, implicitConversions}
 import scala.util.hashing.MurmurHash3
@@ -139,6 +141,24 @@ class FlinkDataSet[A: Meta] private[api](@transient private val rep: DataSet[A])
     h = MurmurHash3.mix(h, b)
     h = MurmurHash3.mixLast(h, c)
     MurmurHash3.finalizeHash(h, n)
+  }
+
+  // -----------------------------------------------------
+  // Persist
+  // -----------------------------------------------------
+
+  override def persist(): DataBag[A] = {
+    val ti = org.apache.flink.api.scala.createTypeInformation[A]
+    val outFmt = new org.apache.flink.api.java.io.TypeSerializerOutputFormat[A]
+    outFmt.setInputType(ti, env.getConfig)
+    outFmt.setSerializer(ti.createSerializer(env.getConfig))
+
+    val path = TempResultsManager.newTempFilePath()
+    rep.write(outFmt, path, WriteMode.NO_OVERWRITE)
+    env.execute("Persisting DataSet to '$path'")
+
+    val inFmt = new org.apache.flink.api.java.io.TypeSerializerInputFormat[A](ti)
+    new FlinkDataSet(env.readFile(inFmt, path))
   }
 }
 
