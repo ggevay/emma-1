@@ -18,6 +18,7 @@ package compiler
 
 import api._
 import io.csv.CSV
+import org.emmalanguage.test.schema.ImdbMovie
 import test.schema.Graphs._
 import test.schema.Movies._
 import test.schema.Math._
