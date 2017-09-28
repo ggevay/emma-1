@@ -167,6 +167,8 @@ private[compiler] trait Lib extends Common {
             val fld = cls.info.member(api.TermName(fldName)).asTerm
             val sel = qualifyStatics(api.DefCall(Some(api.Ref(cls.module)), fld))
             // evaluate `objSym.fldSym` and grab the DefDef source
+            println(api.DefCall(Some(api.Ref(cls.module)), fld))
+            println(u.showCode(sel))
             val src = eval[String](sel)
             // parse the source and grab the DefDef AST
             parse(Seq(_.collect(extractDef).head, fixDefDefSymbols(sym)))(src)
