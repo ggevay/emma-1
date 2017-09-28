@@ -13,11 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.emmalanguage
-package lib.ml.feature
 
-import api._
-import lib.ml.SPoint
+import org.emmalanguage.SparkAware
+import org.emmalanguage.api._
+import org.emmalanguage.lib.ml.SPoint
 
 class EncodeSparkSpec extends EncodeSpec with SparkAware {
 

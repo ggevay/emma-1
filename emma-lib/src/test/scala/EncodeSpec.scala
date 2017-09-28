@@ -13,12 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.emmalanguage
-package lib.ml.feature
 
-import api._
-import lib.linalg._
-import lib.ml._
+import org.emmalanguage.api._
+import org.emmalanguage.lib.linalg._
+import org.emmalanguage.lib.ml._
+import org.emmalanguage.lib.ml.feature.FeatureSpec
 
 import org.scalactic._
 
