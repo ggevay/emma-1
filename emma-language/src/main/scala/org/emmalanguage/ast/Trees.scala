@@ -255,6 +255,9 @@ trait Trees { this: AST =>
       def resolveStatic(target: u.Symbol): u.Tree = {
         assert(is.defined(target), "Cannot resolve undefined target")
         assert(target.isStatic,   s"Cannot resolve dynamic target $target")
+        for (s <- Owner.chain(target).takeWhile(!is.root(_))) {
+          println("=== " + s)
+        }
         Owner.chain(target).takeWhile(!is.root(_)).foldRight[u.Tree](Root) {
           (member, owner) => Sel(owner, member)
         }
