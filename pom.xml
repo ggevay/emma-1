@@ -885,6 +885,7 @@
         <module>emma-language</module>
         <module>emma-flink</module>
         <module>emma-spark</module>
+        <module>emma-labyrinth</module>
         <module>emma-lib</module>
         <module>emma-lib-flink</module>
         <module>emma-lib-spark</module>
