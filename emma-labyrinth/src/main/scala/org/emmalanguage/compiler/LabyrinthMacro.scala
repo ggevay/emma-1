@@ -20,17 +20,16 @@ import com.typesafe.config.Config
 
 import scala.reflect.macros.blackbox
 
+// TODO ajdust to labyrinth
 class LabyrinthMacro(val c: blackbox.Context) extends MacroCompiler with LabyrinthCompiler {
 
-  ()
-  // TODO
-  def onSparkImpl1[T](e: c.Expr[T]): c.Expr[T] =
-    onSpark(loadConfig(configPaths()))(e)
+  def onFlinkImpl1[T](e: c.Expr[T]): c.Expr[T] =
+    onFlink(loadConfig(configPaths()))(e)
 
-  def onSparkImpl2[T](config: c.Expr[String])(e: c.Expr[T]): c.Expr[T] =
-    onSpark(loadConfig(configPaths(Some(config.tree))))(e)
+  def onFlinkImpl2[T](config: c.Expr[String])(e: c.Expr[T]): c.Expr[T] =
+    onFlink(loadConfig(configPaths(Some(config.tree))))(e)
 
-  def onSpark[T](cfg: Config)(e: c.Expr[T]): c.Expr[T] = {
+  def onFlink[T](cfg: Config)(e: c.Expr[T]): c.Expr[T] = {
     // construct the compilation pipeline
     val xfms = transformations(cfg)
     // construct the eval function
