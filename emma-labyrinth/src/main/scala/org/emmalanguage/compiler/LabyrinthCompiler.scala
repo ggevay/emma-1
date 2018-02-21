@@ -16,4 +16,31 @@
 package org.emmalanguage
 package compiler
 
-trait LabyrinthCompiler extends Compiler
+import com.typesafe.config.Config
+
+trait LabyrinthCompiler extends Compiler {
+
+  def transformations(implicit cfg: Config): Seq[TreeTransform] = Seq(
+    // lifting
+    Lib.expand,
+    Core.lift,
+    // optimizations
+    Core.cse iff "emma.compiler.opt.cse" is true,
+    Optimizations.foldFusion iff "emma.compiler.opt.fold-fusion" is true,
+    Optimizations.addCacheCalls iff "emma.compiler.opt.auto-cache" is true,
+    // backend
+    Comprehension.combine,
+    Core.unnest,
+
+//    SparkBackend.transform,
+//    SparkOptimizations.specializeOps iff "emma.compiler.spark.native-ops" is true,
+
+    // lowering
+    Core.trampoline iff "emma.compiler.lower" is "trampoline",
+
+    // TODO
+//    Core.dscfInv iff "emma.compiler.lower" is "dscfInv",
+
+    removeShadowedThis
+  ) filterNot (_ == noop)
+}
