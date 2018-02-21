@@ -15,32 +15,30 @@
  */
 package org.emmalanguage
 
-//import org.apache.flink.api.scala.ExecutionEnvironment
-//import org.apache.log4j.Logger
-
+import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
+import org.apache.log4j.Logger
 
 /**
- * THIS IS A 1TO1 COPY FROM FlingAware for structure purposes RIGHT NOW!!!
- * WIP!!!!!!
+ * copied and adjusted from FlinkAway
  */
 trait LabyrinthAware {
 
-//  Logger.getLogger("org.apache.flink").setLevel(org.apache.log4j.Level.WARN)
-//  Logger.getLogger("org.apache.flink.api.common.io.BinaryInputFormat").setLevel(org.apache.log4j.Level.ERROR)
-//
-  protected trait LabyrinthConfig
-//
-//  protected val defaultFlinkConfig = new FlinkConfig {}
-//
-//  protected lazy val defaultFlinkEnv =
-//    flinkEnv(defaultFlinkConfig)
-//
-//  protected def flinkEnv(c: FlinkConfig): ExecutionEnvironment = {
-//    val env = ExecutionEnvironment.getExecutionEnvironment
-//    env.getConfig.disableSysoutLogging()
-//    env
-//  }
-//
-//  protected def withDefaultFlinkEnv[T](f: ExecutionEnvironment => T): T =
-//    f(defaultFlinkEnv)
+  Logger.getLogger("org.apache.flink").setLevel(org.apache.log4j.Level.WARN)
+  Logger.getLogger("org.apache.flink.api.common.io.BinaryInputFormat").setLevel(org.apache.log4j.Level.ERROR)
+
+  protected trait FlinkConfig
+
+  protected val defaultFlinkConfig = new FlinkConfig {}
+
+  protected lazy val defaultFlinkEnv =
+    flinkEnv(defaultFlinkConfig)
+
+  protected def flinkEnv(c: FlinkConfig): StreamExecutionEnvironment = {
+    val env = StreamExecutionEnvironment.getExecutionEnvironment
+    env.getConfig.disableSysoutLogging()
+    env
+  }
+
+  protected def withDefaultFlinkEnv[T](f: StreamExecutionEnvironment => T): T =
+    f(defaultFlinkEnv)
 }

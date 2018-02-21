@@ -30,17 +30,17 @@ trait LabyrinthCompiler extends Compiler {
     Optimizations.addCacheCalls iff "emma.compiler.opt.auto-cache" is true,
     // backend
     Comprehension.combine,
-    Core.unnest,
-
-//    SparkBackend.transform,
-//    SparkOptimizations.specializeOps iff "emma.compiler.spark.native-ops" is true,
-
-    // lowering
-    Core.trampoline iff "emma.compiler.lower" is "trampoline",
-
+    Core.unnest
     // TODO
-//    Core.dscfInv iff "emma.compiler.lower" is "dscfInv",
 
-    removeShadowedThis
+//        SparkBackend.transform,
+//        SparkOptimizations.specializeOps iff "emma.compiler.spark.native-ops" is true,
+//
+//    // lowering
+//    Core.trampoline iff "emma.compiler.lower" is "trampoline",
+//
+//    // Core.dscfInv iff "emma.compiler.lower" is "dscfInv",
+//
+//    removeShadowedThis
   ) filterNot (_ == noop)
 }
