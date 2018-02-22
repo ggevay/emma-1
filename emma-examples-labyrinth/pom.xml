@@ -39,7 +39,7 @@
         <scalastyle-maven-plugin.skip>false</scalastyle-maven-plugin.skip>
         <scalatest-maven-plugin.skip>${skipTests}</scalatest-maven-plugin.skip>
 
-        <!-- labyrinth flink versin -->
+        <!-- labyrinth flink version -->
         <flink.version>1.5-labyrinth</flink.version>
     </properties>
 
@@ -112,6 +112,11 @@
         <dependency>
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-clients_${scala.tools.version}</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-common</artifactId>
         </dependency>
 
         <!--
