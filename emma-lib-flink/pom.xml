@@ -81,5 +81,11 @@
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-clients_${scala.tools.version}</artifactId>
         </dependency>
+
+        <!-- Hadoop -->
+        <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-common</artifactId>
+        </dependency>
     </dependencies>
 </project>
