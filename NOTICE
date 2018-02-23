@@ -17,10 +17,6 @@ under the License.
 
 This project includes:
   "Java Concurrency in Practice" book annotations under Creative Commons Attribution License
-  akka-actor under Apache License, Version 2.0
-  akka-protobuf under Apache License, Version 2.0
-  akka-slf4j under Apache License, Version 2.0
-  akka-stream under Apache License, Version 2.0
   An open source Java toolkit for Amazon S3 under Apache License, Version 2.0
   ANTLR 4 Runtime under The BSD License
   aopalliance version 1.0 repackaged as a module under CDDL + GPLv2 with classpath exception
@@ -50,7 +46,6 @@ This project includes:
   Apache Parquet Format under The Apache Software License, Version 2.0
   Apache Parquet Hadoop under The Apache Software License, Version 2.0
   Apache Parquet Jackson under The Apache Software License, Version 2.0
-  Apache Sling JSON Library under The Apache Software License, Version 2.0
   Apache XBean :: ASM 5 shaded (repackaged) under null or null
   ApacheDS I18n under The Apache Software License, Version 2.0
   ApacheDS Protocol Kerberos Codec under The Apache Software License, Version 2.0
@@ -100,11 +95,9 @@ This project includes:
   emma-benchmarks under The Apache License, Version 2.0
   emma-examples under The Apache License, Version 2.0
   emma-examples-flink under The Apache License, Version 2.0
-  emma-examples-labyrinth under The Apache License, Version 2.0
   emma-examples-spark under The Apache License, Version 2.0
   emma-flink under The Apache License, Version 2.0
   emma-gui under The Apache License, Version 2.0
-  emma-labyrinth under The Apache License, Version 2.0
   emma-language under The Apache License, Version 2.0
   emma-lib under The Apache License, Version 2.0
   emma-lib-flink under The Apache License, Version 2.0
@@ -112,7 +105,6 @@ This project includes:
   emma-quickstart under The Apache License, Version 2.0
   emma-spark under The Apache License, Version 2.0
   empty under The Apache License, Version 2.0
-  fastutil under Apache License, Version 2.0
   FindBugs-jsr305 under The Apache Software License, Version 2.0
   flakka-actor under Apache License, Version 2.0
   flakka-remote under Apache License, Version 2.0
@@ -120,21 +112,13 @@ This project includes:
   flink-annotations under The Apache Software License, Version 2.0
   flink-clients under The Apache Software License, Version 2.0
   flink-core under The Apache Software License, Version 2.0
-  flink-hadoop-fs under The Apache Software License, Version 2.0
   flink-java under The Apache Software License, Version 2.0
   flink-metrics-core under The Apache Software License, Version 2.0
   flink-optimizer under The Apache Software License, Version 2.0
-  flink-queryable-state-client-java under The Apache Software License, Version 2.0
   flink-runtime under The Apache Software License, Version 2.0
   flink-scala under The Apache Software License, Version 2.0
-  flink-shaded-asm-5 under The Apache Software License, Version 2.0
-  flink-shaded-guava-18 under The Apache Software License, Version 2.0
   flink-shaded-hadoop2 under The Apache Software License, Version 2.0
-  flink-shaded-jackson-2 under The Apache Software License, Version 2.0
-  flink-shaded-netty-4 under The Apache Software License, Version 2.0
-  flink-streaming-java under The Apache Software License, Version 2.0
-  flink-streaming-scala under The Apache Software License, Version 2.0
-  force-shading under Apache License, Version 2.0
+  force-shading under The Apache Software License, Version 2.0
   Fortran to Java ARPACK under The BSD License
   Graphite Integration for Metrics under Apache License 2.0
   grizzled-slf4j under BSD
@@ -237,12 +221,10 @@ This project includes:
   Protocol Buffer Java API under New BSD license
   Py4J under The New BSD License
   pyrolite under MIT License
-  reactive-streams under CC0
   RoaringBitmap under Apache 2
   Scala Compiler under BSD 3-Clause
   Scala Library under BSD 3-Clause
   scala-arm under BSD-Style
-  scala-java8-compat under BSD 3-clause
   scala-logging-api under Apache 2.0 License
   scala-logging-slf4j under Apache 2.0 License
   scala-parser-combinators under BSD 3-clause
@@ -277,7 +259,6 @@ This project includes:
   spire under BSD-style
   spire-macros under BSD-style
   spray-json under Apache 2
-  ssl-config-core under Apache License, Version 2.0
   stream-lib under Apache License, Version 2.0
   Streaming API for XML under Sun Binary Code License
   test-interface under MIT
