@@ -93,7 +93,7 @@ public class ClickCountDiffsInputGen {
         }
     }
 
-    static String readFile(String path, Charset encoding)
+    private static String readFile(String path, Charset encoding)
             throws IOException
     {
         byte[] encoded = Files.readAllBytes(Paths.get(path));
