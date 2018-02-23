@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package inputgen;
+package org.emmalanguage.labyrinth.inputgen;
 
 import org.apache.flink.api.common.functions.RichFilterFunction;
 import org.apache.flink.api.common.typeinfo.TypeHint;

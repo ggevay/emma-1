@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package inputgen;
+package org.emmalanguage.labyrinth.inputgen;
 
 import java.io.File;
 import java.io.FileWriter;

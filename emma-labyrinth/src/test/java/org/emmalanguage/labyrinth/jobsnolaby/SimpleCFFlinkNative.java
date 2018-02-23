@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package nolaby;
+package org.emmalanguage.labyrinth.jobsnolaby;
 
 import org.emmalanguage.labyrinth.util.TestFailedException;
 import org.apache.flink.api.common.functions.MapFunction;

@@ -16,15 +16,15 @@
 
 package org.emmalanguage.labyrinth;
 
-import jobs.ClickCountDiffs;
-import jobs.ClickCountDiffsScala;
-import jobsold.NoCF;
-import jobsold.SimpleCF;
-import inputgen.ClickCountDiffsInputGen;
-import jobsold.ConnectedComponents;
-import jobsold.ConnectedComponentsMB;
-import jobsold.EmptyBags;
-import jobsold.SimpleCFDataSize;
+import org.emmalanguage.labyrinth.jobs.ClickCountDiffs;
+import org.emmalanguage.labyrinth.jobs.ClickCountDiffsScala;
+import org.emmalanguage.labyrinth.jobsold.NoCF;
+import org.emmalanguage.labyrinth.jobsold.SimpleCF;
+import org.emmalanguage.labyrinth.inputgen.ClickCountDiffsInputGen;
+import org.emmalanguage.labyrinth.jobsold.ConnectedComponents;
+import org.emmalanguage.labyrinth.jobsold.ConnectedComponentsMB;
+import org.emmalanguage.labyrinth.jobsold.EmptyBags;
+import org.emmalanguage.labyrinth.jobsold.SimpleCFDataSize;
 import org.apache.commons.io.FileUtils;
 import org.apache.flink.runtime.client.JobCancellationException;
 import org.junit.Test;
@@ -42,7 +42,7 @@ public class CFLITCase {
     @Test(expected=JobCancellationException.class)
     public void testNoCFNew() throws Exception {
         LabyNode.labyNodes.clear();
-        jobs.NoCF.main(null);
+        org.emmalanguage.labyrinth.jobs.NoCF.main(null);
     }
 
     @Test(expected=JobCancellationException.class)
@@ -58,7 +58,7 @@ public class CFLITCase {
     @Test(expected=JobCancellationException.class)
     public void testSimpleCFNew() throws Exception {
         LabyNode.labyNodes.clear();
-        jobs.SimpleCF.main(new String[]{"100"});
+        org.emmalanguage.labyrinth.jobs.SimpleCF.main(new String[]{"100"});
     }
 
     @Test(expected=JobCancellationException.class)
@@ -102,7 +102,7 @@ public class CFLITCase {
         ClickCountDiffsInputGen.checkLabyOut(path, numDays, exp);
 
         int nocflNumDays = numDays/10;
-        nolaby.ClickCountDiffs.main(new String[]{path, Integer.toString(nocflNumDays)});
+        org.emmalanguage.labyrinth.jobsnolaby.ClickCountDiffs.main(new String[]{path, Integer.toString(nocflNumDays)});
         ClickCountDiffsInputGen.checkNocflOut(path, nocflNumDays, exp);
     }
 

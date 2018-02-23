@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package nolaby;
+package org.emmalanguage.labyrinth.jobsnolaby;
 
 import org.apache.flink.api.common.functions.FlatJoinFunction;
 import org.apache.flink.api.common.functions.JoinFunction;
