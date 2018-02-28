@@ -555,11 +555,11 @@ public class PageRankDiffs {
                 .addInput(day_2, false, true);
 
         LabyNode<Double, Either<Integer, Double>> sum_prep =
-            new LabyNode<>("day_2_prep", new FlatMap<Double, Either<Integer, Double>>() {
+            new LabyNode<>("sum_prep", new FlatMap<Double, Either<Integer, Double>>() {
                 @Override
                 public void pushInElement(Double e, int logicalInputId) {
                     super.pushInElement(e, logicalInputId);
-                    out.collectElement(Either.Right(e));
+                    out.collectElement(Either.Right((double)Math.round(e * 1000d) / 1000d));
                 }
             }, 4, new Forward<>(para), doubleSer, typeInfoEoEEitherIntDouble)
                 .addInput(sum, true, false);

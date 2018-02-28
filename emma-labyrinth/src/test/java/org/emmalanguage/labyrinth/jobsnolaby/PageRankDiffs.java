@@ -259,7 +259,8 @@ public class PageRankDiffs {
 				diffs.sum(0).map(new MapFunction<Tuple1<DoubleValue>, String>() {
 					@Override
 					public String map(Tuple1<DoubleValue> dv) throws Exception {
-						return dv.f0.toString();
+						Double rounded = (double)Math.round(dv.f0.getValue() * 1000d) / 1000d;
+						return rounded.toString();
 					}
 				}).setParallelism(1).writeAsText(pref + "out/expected/diff_" + day, FileSystem.WriteMode.OVERWRITE);
 			}
