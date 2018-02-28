@@ -58,7 +58,7 @@ public class PageRankDiffs {
 		env.getConfig().enableObjectReuse();
 
 		final double d = 0.85;
-		final double epsilon = 0.0000000001;
+		final double epsilon = 0.00001;
 
 		String pref = args[0] + "/";
 		final String yesterdayPRTmpFilename = pref + "tmp/yesterdayCounts";
