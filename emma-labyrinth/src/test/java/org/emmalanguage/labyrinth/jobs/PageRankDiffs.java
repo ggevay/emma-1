@@ -76,14 +76,15 @@ import java.util.Collections;
  * d = 0.85 // damping factor
  * epsilon = 0.001
  * For day = 1 .. 365
- *   edges = readFile("click_log_" + day) // (from,to) pairs
+ *   edges0 = readFile("click_log_" + day) // (from,to) pairs
+ *   pages = edges0.flatMap(e => [e.from, e.to]).distinct
+ *   loopEdges = pages.map(p => (p, p))
+ *   edges = edges0 union loopEdges
  *   // Compute out-degrees and attach to edges
  *   edgesWithDeg = edges
  *     .map((from, to) => (from, 1))
  *     .reduceByKey(_ + _)
  *     .join(edges) // results in (from, to, degree) triples
- *   // Get all pages and init PageRank computation
- *   pages = (edges.map(_.from) union edges.map(_.to)).distinct
  *   numPages = pages.count
  *   initWeight = 1.0 / numPages
  *   PR = pages.map(id => (id, initWeight))
@@ -118,15 +119,14 @@ import java.util.Collections;
  *   // BB 1
  *   day_2 = phi(day_1, day_3)
  *   yesterdayPR_2 = phi(yesterdayPR_1, yesterdayPR_3)
- *   edges = readFile("click_log_" + day) // (from,to) pairs
+ *   edges0 = readFile("click_log_" + day) // (from,to) pairs
+ *   edgesFromToFlatMapped = edges0.flatMap(e => [e.from, e.to])
+ *   pages = edgesFromToFlatMapped.distinct
+ *   loopEdges = pages.map(p => (p, p))
+ *   edges = edges0 union loopEdges
  *   edgesMapped = edges.map((from, to) => (from, 1))
  *   edgesMappedReduced = edgesMapped.reduceByKey(_ + _)
  *   edgesWithDeg = edgesMappedReduced join edges // (from, to, degree) triples
- *   // Get all pages and init PageRank computation
- *   edgesFromMapped = edges.map(_.from)
- *   edgesToMapped = edges.map(_.to)
- *   edgesFromToUnioned = edgesFromMapped union edgesToMapped
- *   pages = pagesFromToUnioned.distinct
  *   numPages = pages.count
  *   initWeight = 1.0 / numPages
  *   PR_1 = pages.map(id => (id, initWeight))
@@ -234,9 +234,39 @@ public class PageRankDiffs {
                 new LabyNode<>("edges_read", new ClickLogReader2(pref + "/input/"), 1, new RoundRobin<>(para), integerSer, typeInfoTupleIntInt)
                         .addInput(day_2, true, false);
 
-        LabyNode<TupleIntInt, TupleIntInt> edges =
-                new LabyNode<>("edges", new IdMap<>(), 1, new RoundRobin<>(para), tupleIntIntSer, typeInfoTupleIntInt)
+        LabyNode<TupleIntInt, TupleIntInt> edges0 =
+                new LabyNode<>("edges0", new IdMap<>(), 1, new RoundRobin<>(para), tupleIntIntSer, typeInfoTupleIntInt)
                 .addInput(edges_read, true, false);
+
+        LabyNode<TupleIntInt, Integer> edgesFromToFlatMapped =
+                new LabyNode<>("edgesFromToFlatMapped", new FlatMap<TupleIntInt, Integer>() {
+                    @Override
+                    public void pushInElement(TupleIntInt e, int logicalInputId) {
+                        super.pushInElement(e, logicalInputId);
+                        out.collectElement(e.f0);
+                        out.collectElement(e.f1);
+                    }
+                }, 1, new Forward<>(para), tupleIntIntSer, typeInfoInt)
+                        .addInput(edges0, true, false);
+
+        LabyNode<Integer, Integer> pages =
+                new LabyNode<>("pages", new DistinctInt(), 1, new IntegerBy0(para), integerSer, typeInfoInt)
+                        .addInput(edgesFromToFlatMapped, true, false);
+
+        LabyNode<Integer, TupleIntInt> loopEdges =
+                new LabyNode<>("loopEdges", new FlatMap<Integer, TupleIntInt>() {
+                    @Override
+                    public void pushInElement(Integer e, int logicalInputId) {
+                        super.pushInElement(e, logicalInputId);
+                        out.collectElement(TupleIntInt.of(e,e));
+                    }
+                }, 1, new Forward<>(para), integerSer, typeInfoTupleIntInt)
+                .addInput(pages, true, false);
+
+        LabyNode<TupleIntInt, TupleIntInt> edges =
+                new LabyNode<>("edges", new Union<>(), 1, new Forward<>(para), tupleIntIntSer, typeInfoTupleIntInt)
+                .addInput(edges0, true, false)
+                .addInput(loopEdges, true, false);
 
         LabyNode<TupleIntInt, TupleIntInt> edgesMapped =
                 new LabyNode<>("edgesMapped", new FlatMap<TupleIntInt, TupleIntInt>() {
@@ -275,33 +305,6 @@ public class PageRankDiffs {
                 }
             }, 1, new Forward<>(para), tupleIntIntIntSer, joinPrepTypeInfo)
                 .addInput(edgesWithDeg, true, false);
-
-        LabyNode<TupleIntInt, Integer> edgesFromMapped = new LabyNode<>("edgesFromMapped", new FlatMap<TupleIntInt, Integer>() {
-            @Override
-            public void pushInElement(TupleIntInt e, int logicalInputId) {
-                super.pushInElement(e, logicalInputId);
-                out.collectElement(e.f0);
-            }
-        }, 1, new Forward<>(para), tupleIntIntSer, typeInfoInt)
-                .addInput(edges, true, false);
-
-        LabyNode<TupleIntInt, Integer> edgesToMapped = new LabyNode<>("edgesToMapped", new FlatMap<TupleIntInt, Integer>() {
-            @Override
-            public void pushInElement(TupleIntInt e, int logicalInputId) {
-                super.pushInElement(e, logicalInputId);
-                out.collectElement(e.f1);
-            }
-        }, 1, new Forward<>(para), tupleIntIntSer, typeInfoInt)
-                .addInput(edges, true, false);
-
-        LabyNode<Integer, Integer> edgesFromToUnioned =
-                new LabyNode<>("edgesFromToUnioned", new Union<>(), 1, new Forward<>(para), integerSer, typeInfoInt)
-                .addInput(edgesFromMapped, true, false)
-                .addInput(edgesToMapped, true, false);
-
-        LabyNode<Integer, Integer> pages =
-                new LabyNode<>("pages", new DistinctInt(), 1, new IntegerBy0(para), integerSer, typeInfoInt)
-                .addInput(edgesFromToUnioned, true, false);
 
         LabyNode<Integer, Integer> numPagesCombiner =
                 new LabyNode<>("numPagesCombiner", new CountCombiner<>(), 1, new Forward<>(para), integerSer, typeInfoInt)
@@ -403,23 +406,19 @@ public class PageRankDiffs {
             }, 2, new TupleIntDoubleBy0(para), tupleIntDoubleSer, typeInfoTupleIntDouble)
                 .addInput(msgs, true, false);
 
-        LabyNode<TupleIntDouble, TupleIntDouble> msgsDampened =
-            new LabyNode<>("msgsDampened", new OpWithSingletonSide<TupleIntDouble, TupleIntDouble>(tupleIntDoubleSer) {
+        LabyNode<TupleIntDouble, TupleIntDouble> newPR =
+            new LabyNode<>("newPR", new OpWithSingletonSide<TupleIntDouble, TupleIntDouble>(tupleIntDoubleSer) {
                 @Override
                 protected void pushInElementWithSingletonSide(TupleIntDouble e, TupleIntDouble side) {
                     assert side.f0 == -1;
                     double initWeight = side.f1;
+                    double jump = (1-d) * initWeight;
                     double newRank = e.f1;
-                    out.collectElement(TupleIntDouble.of(e.f0, d * newRank + (1-d) * initWeight));
+                    out.collectElement(TupleIntDouble.of(e.f0, d * newRank + jump));
                 }
             }, 2, null, tupleIntDoubleSer, typeInfoTupleIntDouble)
                 .addInput(initWeightTupleIntDouble, false, false, new Broadcast<>(para))
                 .addInput(msgsReduced, true, false, new Forward<>(para));
-
-        LabyNode<TupleIntDouble, TupleIntDouble> newPR =
-            new LabyNode<>("newPR", new UpdateJoinTupleIntDouble(), 2, new TupleIntDoubleBy0(para), tupleIntDoubleSer, typeInfoTupleIntDouble)
-                .addInput(PR_2, true, false)
-                .addInput(msgsDampened, true, false);
 
         LabyNode<TupleIntDouble, Double> changes =
                 new LabyNode<>("changes", new JoinTupleIntDouble<Double>() {
