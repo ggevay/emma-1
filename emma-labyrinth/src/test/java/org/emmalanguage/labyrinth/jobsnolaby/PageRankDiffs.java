@@ -51,6 +51,9 @@ public class PageRankDiffs {
 	private static final Logger LOG = LoggerFactory.getLogger(PageRankDiffs.class);
 
 	public static void main(String[] args) throws Exception {
+
+		long startTime = System.nanoTime();
+
 		ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
 
 		//env.getConfig().setParallelism(1);
@@ -58,7 +61,7 @@ public class PageRankDiffs {
 		env.getConfig().enableObjectReuse();
 
 		final double d = 0.85;
-		final double epsilon = 0.00001;
+		final double epsilon = 0.0001;
 
 		String pref = args[0] + "/";
 		final String yesterdayPRTmpFilename = pref + "tmp/yesterdayCounts";
@@ -259,7 +262,7 @@ public class PageRankDiffs {
 				diffs.sum(0).map(new MapFunction<Tuple1<DoubleValue>, String>() {
 					@Override
 					public String map(Tuple1<DoubleValue> dv) throws Exception {
-						Double rounded = (double)Math.round(dv.f0.getValue() * 1000d) / 1000d;
+						Double rounded = (double)Math.round(dv.f0.getValue() * 100d) / 100d;
 						return rounded.toString();
 					}
 				}).setParallelism(1).writeAsText(pref + "out/expected/diff_" + day, FileSystem.WriteMode.OVERWRITE);
@@ -277,5 +280,8 @@ public class PageRankDiffs {
 			fs.delete(new Path(yesterdayPRTmpFilename), true);
 			fs.rename(new Path(todayPRTmpFilename), new Path(yesterdayPRTmpFilename));
 		}
+
+		long endTime = System.nanoTime();
+		System.out.println("Time: " + (endTime-startTime)/1000000000);
 	}
 }

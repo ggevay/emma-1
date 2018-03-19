@@ -162,6 +162,9 @@ public class PageRankDiffs {
     private static TypeSerializer<TupleIntDouble> tupleIntDoubleSer = new TupleIntDouble.TupleIntDoubleSerializer();
 
     public static void main(String[] args) throws Exception {
+
+        long startTime = System.nanoTime();
+
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
         //env.setParallelism(1);
@@ -195,7 +198,7 @@ public class PageRankDiffs {
 
         double d = 0.85;
 
-        double epsilon = 0.00001;
+        double epsilon = 0.0001;
 
         // -- Outer iteration starts here --   BB 1
 
@@ -537,7 +540,7 @@ public class PageRankDiffs {
                 @Override
                 public void pushInElement(Double e, int logicalInputId) {
                     super.pushInElement(e, logicalInputId);
-                    out.collectElement(Either.Right((double)Math.round(e * 1000d) / 1000d));
+                    out.collectElement(Either.Right((double)Math.round(e * 100d) / 100d));
                 }
             }, 4, new Forward<>(para), doubleSer, typeInfoEoEEitherIntDouble)
                 .addInput(sum, true, false);
@@ -580,5 +583,8 @@ public class PageRankDiffs {
 
         System.out.println(env.getExecutionPlan());
         env.execute();
+
+        long endTime = System.nanoTime();
+        System.out.println("Time: " + (endTime-startTime)/1000000000);
     }
 }
