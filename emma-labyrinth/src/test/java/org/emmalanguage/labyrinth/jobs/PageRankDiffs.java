@@ -16,6 +16,13 @@
 
 package org.emmalanguage.labyrinth.jobs;
 
+import org.apache.flink.api.common.io.InputFormat;
+import org.apache.flink.api.java.io.CsvInputFormat;
+import org.apache.flink.api.java.io.TupleCsvInputFormat;
+import org.apache.flink.api.java.typeutils.TupleTypeInfo;
+import org.apache.flink.core.fs.FileInputSplit;
+import org.apache.flink.core.fs.Path;
+import org.apache.flink.core.io.InputSplit;
 import org.emmalanguage.labyrinth.ElementOrEvent;
 import org.emmalanguage.labyrinth.LabyNode;
 import org.emmalanguage.labyrinth.LabySource;
@@ -147,6 +154,7 @@ import java.util.Collections;
 public class PageRankDiffs {
 
     private static TypeInformation<ElementOrEvent<TupleIntInt>> typeInfoTupleIntInt = TypeInformation.of(new TypeHint<ElementOrEvent<TupleIntInt>>(){});
+    private static TupleTypeInfo<Tuple2<Integer, Integer>> typeInfoTuple2IntegerInteger = new TupleTypeInfo<>(TypeInformation.of(Integer.class), TypeInformation.of(Integer.class));
     private static TypeInformation<ElementOrEvent<TupleIntIntInt>> typeInfoTupleIntIntInt = TypeInformation.of(new TypeHint<ElementOrEvent<TupleIntIntInt>>(){});
     private static TypeInformation<ElementOrEvent<Integer>> typeInfoInt = TypeInformation.of(new TypeHint<ElementOrEvent<Integer>>(){});
     private static TypeInformation<ElementOrEvent<Double>> typeInfoDouble = TypeInformation.of(new TypeHint<ElementOrEvent<Double>>(){});
@@ -160,6 +168,7 @@ public class PageRankDiffs {
     private static TypeSerializer<TupleIntInt> tupleIntIntSer = new TupleIntInt.TupleIntIntSerializer();
     private static TypeSerializer<TupleIntIntInt> tupleIntIntIntSer = new TupleIntIntInt.TupleIntIntIntSerializer();
     private static TypeSerializer<TupleIntDouble> tupleIntDoubleSer = new TupleIntDouble.TupleIntDoubleSerializer();
+    private static TypeSerializer<String> stringSer = TypeInformation.of(String.class).createSerializer(new ExecutionConfig());
 
     public static void main(String[] args) throws Exception {
 
@@ -211,9 +220,38 @@ public class PageRankDiffs {
                 .addInput(day_1, false)
                 .setParallelism(1);
 
-        LabyNode<Integer, TupleIntInt> edges_read =
-                new LabyNode<>("edges_read", new ClickLogReader2(pref + "/input/"), 1, new RoundRobin<>(para), integerSer, typeInfoTupleIntInt)
-                        .addInput(day_2, true, false);
+//        LabyNode<Integer, TupleIntInt> edges_read =
+//                new LabyNode<>("edges_read", new ClickLogReader2(pref + "/input/"), 1, new RoundRobin<>(para), integerSer, typeInfoTupleIntInt)
+//                        .addInput(day_2, true, false);
+
+        // --- File reading ---
+
+        LabyNode<Integer, String> edges_filename =
+                new LabyNode<>("edges_filename", new FlatMap<Integer, String>() {
+                    @Override
+                    public void pushInElement(Integer e, int logicalInputId) {
+                        super.pushInElement(e, logicalInputId);
+                        out.collectElement(new String(pref + "/input/" + e));
+                    }
+                }, 1, new Always0<>(1), integerSer, TypeInformation.of(new TypeHint<ElementOrEvent<String>>(){}))
+                .addInput(day_2, true, false)
+                .setParallelism(1);
+
+        LabyNode<String, InputFormatWithInputSplit<Tuple2<Integer, Integer>, FileInputSplit>> edges_input_splits =
+                new LabyNode<String, InputFormatWithInputSplit<Tuple2<Integer, Integer>, FileInputSplit>>("edges_read", new CFAwareFileSourcePara<Tuple2<Integer, Integer>, FileInputSplit>() {
+                    @Override
+                    protected InputFormat<Tuple2<Integer, Integer>, FileInputSplit> getInputFormatFromFilename(String filename) {
+                        return new TupleCsvInputFormat<Tuple2<Integer, Integer>>(new Path(filename), typeInfoTuple2IntegerInteger);
+                    }
+                }, 1, new Always0<String>(1), stringSer, TypeInformation.of(new TypeHint<ElementOrEvent<InputFormatWithInputSplit<Tuple2<Integer, Integer>, FileInputSplit>>>(){}))
+                .addInput(edges_filename, true, false)
+                .setParallelism(1);
+
+        LabyNode<InputFormatWithInputSplit<Tuple2<Integer, Integer>, FileInputSplit>, Tuple2<Integer, Integer>>
+
+        //TODO: map Tuple2<Integer, Integer> to TupleIntInt
+
+        // --- End of file reading ---
 
         LabyNode<TupleIntInt, TupleIntInt> edges0 =
                 new LabyNode<>("edges0", new IdMap<>(), 1, new RoundRobin<>(para), tupleIntIntSer, typeInfoTupleIntInt)
