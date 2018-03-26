@@ -17,12 +17,10 @@
 package org.emmalanguage.labyrinth.jobs;
 
 import org.apache.flink.api.common.io.InputFormat;
-import org.apache.flink.api.java.io.CsvInputFormat;
 import org.apache.flink.api.java.io.TupleCsvInputFormat;
 import org.apache.flink.api.java.typeutils.TupleTypeInfo;
 import org.apache.flink.core.fs.FileInputSplit;
 import org.apache.flink.core.fs.Path;
-import org.apache.flink.core.io.InputSplit;
 import org.emmalanguage.labyrinth.ElementOrEvent;
 import org.emmalanguage.labyrinth.LabyNode;
 import org.emmalanguage.labyrinth.LabySource;
@@ -154,7 +152,8 @@ import java.util.Collections;
 public class PageRankDiffs {
 
     private static TypeInformation<ElementOrEvent<TupleIntInt>> typeInfoTupleIntInt = TypeInformation.of(new TypeHint<ElementOrEvent<TupleIntInt>>(){});
-    private static TupleTypeInfo<Tuple2<Integer, Integer>> typeInfoTuple2IntegerInteger = new TupleTypeInfo<>(TypeInformation.of(Integer.class), TypeInformation.of(Integer.class));
+    private static TupleTypeInfo<Tuple2<Integer, Integer>> typeInfoTuple2IntegerInteger0 = new TupleTypeInfo<>(TypeInformation.of(Integer.class), TypeInformation.of(Integer.class));
+    private static TypeInformation<ElementOrEvent<Tuple2<Integer, Integer>>> typeInfoTuple2IntegerInteger = TypeInformation.of(new TypeHint<ElementOrEvent<Tuple2<Integer, Integer>>>(){});
     private static TypeInformation<ElementOrEvent<TupleIntIntInt>> typeInfoTupleIntIntInt = TypeInformation.of(new TypeHint<ElementOrEvent<TupleIntIntInt>>(){});
     private static TypeInformation<ElementOrEvent<Integer>> typeInfoInt = TypeInformation.of(new TypeHint<ElementOrEvent<Integer>>(){});
     private static TypeInformation<ElementOrEvent<Double>> typeInfoDouble = TypeInformation.of(new TypeHint<ElementOrEvent<Double>>(){});
@@ -169,6 +168,7 @@ public class PageRankDiffs {
     private static TypeSerializer<TupleIntIntInt> tupleIntIntIntSer = new TupleIntIntInt.TupleIntIntIntSerializer();
     private static TypeSerializer<TupleIntDouble> tupleIntDoubleSer = new TupleIntDouble.TupleIntDoubleSerializer();
     private static TypeSerializer<String> stringSer = TypeInformation.of(String.class).createSerializer(new ExecutionConfig());
+    private static TypeSerializer<Tuple2<Integer, Integer>> typeInfoTuple2IntegerIntegerSer = typeInfoTuple2IntegerInteger0.createSerializer(new ExecutionConfig());
 
     public static void main(String[] args) throws Exception {
 
@@ -231,25 +231,41 @@ public class PageRankDiffs {
                     @Override
                     public void pushInElement(Integer e, int logicalInputId) {
                         super.pushInElement(e, logicalInputId);
-                        out.collectElement(new String(pref + "/input/" + e));
+                        out.collectElement(pref + "/input/" + e);
                     }
                 }, 1, new Always0<>(1), integerSer, TypeInformation.of(new TypeHint<ElementOrEvent<String>>(){}))
                 .addInput(day_2, true, false)
                 .setParallelism(1);
 
+        TypeInformation<ElementOrEvent<InputFormatWithInputSplit<Tuple2<Integer, Integer>, FileInputSplit>>> inputFormatWithInputSplitTypeInfo =
+                TypeInformation.of(new TypeHint<ElementOrEvent<InputFormatWithInputSplit<Tuple2<Integer, Integer>, FileInputSplit>>>(){});
+
+        TypeSerializer<InputFormatWithInputSplit<Tuple2<Integer, Integer>, FileInputSplit>> inputFormatWithInputSplitSer =
+                TypeInformation.of(new TypeHint<InputFormatWithInputSplit<Tuple2<Integer, Integer>, FileInputSplit>>(){}).createSerializer(new ExecutionConfig());
+
         LabyNode<String, InputFormatWithInputSplit<Tuple2<Integer, Integer>, FileInputSplit>> edges_input_splits =
-                new LabyNode<String, InputFormatWithInputSplit<Tuple2<Integer, Integer>, FileInputSplit>>("edges_read", new CFAwareFileSourcePara<Tuple2<Integer, Integer>, FileInputSplit>() {
+                new LabyNode<>("edges_read", new CFAwareFileSourcePara<Tuple2<Integer, Integer>, FileInputSplit>() {
                     @Override
                     protected InputFormat<Tuple2<Integer, Integer>, FileInputSplit> getInputFormatFromFilename(String filename) {
-                        return new TupleCsvInputFormat<Tuple2<Integer, Integer>>(new Path(filename), typeInfoTuple2IntegerInteger);
+                        return new TupleCsvInputFormat<>(new Path(filename), "\n", "\t", typeInfoTuple2IntegerInteger0);
                     }
-                }, 1, new Always0<String>(1), stringSer, TypeInformation.of(new TypeHint<ElementOrEvent<InputFormatWithInputSplit<Tuple2<Integer, Integer>, FileInputSplit>>>(){}))
+                }, 1, new Always0<>(1), stringSer, inputFormatWithInputSplitTypeInfo)
                 .addInput(edges_filename, true, false)
                 .setParallelism(1);
 
-        LabyNode<InputFormatWithInputSplit<Tuple2<Integer, Integer>, FileInputSplit>, Tuple2<Integer, Integer>>
+        LabyNode<InputFormatWithInputSplit<Tuple2<Integer, Integer>, FileInputSplit>, Tuple2<Integer, Integer>> edges_read0 =
+                new LabyNode<InputFormatWithInputSplit<Tuple2<Integer, Integer>, FileInputSplit>, Tuple2<Integer, Integer>>("edges_read0", new CFAwareFileSourceParaReader<Tuple2<Integer, Integer>, FileInputSplit>(typeInfoTuple2IntegerInteger0), 1, new RoundRobin<InputFormatWithInputSplit<Tuple2<Integer, Integer>, FileInputSplit>>(para), inputFormatWithInputSplitSer, typeInfoTuple2IntegerInteger)
+                .addInput(edges_input_splits, true, false);
 
-        //TODO: map Tuple2<Integer, Integer> to TupleIntInt
+        LabyNode<Tuple2<Integer, Integer>, TupleIntInt> edges_read =
+                new LabyNode<>("edges_read", new FlatMap<Tuple2<Integer, Integer>, TupleIntInt>() {
+                    @Override
+                    public void pushInElement(Tuple2<Integer, Integer> e, int logicalInputId) {
+                        super.pushInElement(e, logicalInputId);
+                        out.collectElement(TupleIntInt.of(e.f0, e.f1));
+                    }
+                }, 1, new Forward<>(para), typeInfoTuple2IntegerIntegerSer, typeInfoTupleIntInt)
+                .addInput(edges_read0, true, false);
 
         // --- End of file reading ---
 

@@ -16,8 +16,11 @@
 
 package org.emmalanguage.labyrinth.operators;
 
+import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.io.InputFormat;
 import org.apache.flink.api.common.io.RichInputFormat;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.core.io.InputSplit;
 
 import java.io.IOException;
@@ -25,48 +28,17 @@ import java.io.IOException;
 public class CFAwareFileSourceParaReader<OT, IS extends InputSplit>
         extends BagOperator<InputFormatWithInputSplit<OT, IS>, OT> {
 
+    private final TypeInformation<OT> outTypeInfo;
+    private final TypeSerializer<OT> outSerializer;
+
+    public CFAwareFileSourceParaReader(TypeInformation<OT> outTypeInfo) {
+        this.outTypeInfo = outTypeInfo;
+        outSerializer = outTypeInfo.createSerializer(new ExecutionConfig());
+    }
+
     @Override
     public void pushInElement(InputFormatWithInputSplit<OT, IS> e, int logicalInputId) {
         super.pushInElement(e, logicalInputId);
-
-        /*
-		try {
-
-			Counter completedSplitsCounter = getRuntimeContext().getMetricGroup().counter("numSplitsProcessed");
-			if (isRunning && format instanceof RichInputFormat) {
-				((RichInputFormat) format).openInputFormat();
-			}
-
-			OUT nextElement = serializer.createInstance();
-			while (isRunning) {
-				format.open(splitIterator.next());
-
-				// for each element we also check if cancel
-				// was called by checking the isRunning flag
-
-				while (isRunning && !format.reachedEnd()) {
-					nextElement = format.nextRecord(nextElement);
-					if (nextElement != null) {
-						ctx.collect(nextElement);
-					} else {
-						break;
-					}
-				}
-				format.close();
-				completedSplitsCounter.inc();
-
-				if (isRunning) {
-					isRunning = splitIterator.hasNext();
-				}
-			}
-		} finally {
-			format.close();
-			if (format instanceof RichInputFormat) {
-				((RichInputFormat) format).closeInputFormat();
-			}
-			isRunning = false;
-		}
-         */
 
         try {
 
@@ -80,7 +52,7 @@ public class CFAwareFileSourceParaReader<OT, IS extends InputSplit>
             format.open(inputSplit);
 
             while (!format.reachedEnd()) {
-                OT nextElement = format.nextRecord(null); // this should be serializer.createInstance(), but we don't know the Serializer
+                OT nextElement = format.nextRecord(outSerializer.createInstance());
                 if (nextElement != null) {
                     out.collectElement(nextElement);
                 } else {
@@ -89,6 +61,10 @@ public class CFAwareFileSourceParaReader<OT, IS extends InputSplit>
             }
 
             format.close();
+
+            if (format instanceof RichInputFormat) {
+                ((RichInputFormat) format).closeInputFormat();
+            }
 
         } catch (IOException e1) {
             throw new RuntimeException();
