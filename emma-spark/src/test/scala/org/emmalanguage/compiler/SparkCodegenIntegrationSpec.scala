@@ -42,4 +42,96 @@ class SparkCodegenIntegrationSpec extends BaseCodegenIntegrationSpec
       zs.size
     })
   })
+
+  "aaaaa" in {
+
+    println(Source.valid(u.reify {
+      //      val a = 5
+
+      //      val x = {
+      //        var y = 5
+      //        while(y>1){
+      //          y-=1
+      //        }
+      //      }
+      //      x
+
+//      {
+//        val x = 7
+//        x
+//      }
+
+      println(5)
+
+
+      //8
+
+
+    }.tree))
+  }
+
+
+
+  "bbbb" in {
+    val tree = u.reify {
+      val x = {
+        var y = 5
+        while(y>0){
+          y-=1
+        }
+        y
+      }
+      x
+    }
+
+    println(actPipeline(tree))
+    println(u.showCode(actPipeline(tree)))
+    //println(Tree.debug(actPipeline(tree)))
+
+  }
+
+
+  "ccc" in {
+
+    println({
+      var y$p$r2 = 5;
+      def while$r2(): Unit ={
+        if ({
+          val anf$r3 = y$p$r2.>(0);
+          anf$r3
+        })
+        {
+          {
+            val anf$r2 = y$p$r2.-(1);
+            y$p$r2 = anf$r2;
+            ()
+          };
+          while$r2()
+        }
+        else
+          ()
+      };
+      y$p$r2
+    })
+
+  }
+
+
+
+  "dddd" in withBackendContext(implicit env => {
+    verify(u.reify {
+
+      val x = {
+        var y = 5
+        while(y>0){
+          y-=1
+        }
+        y
+      }
+      x
+
+    })
+  })
+
+
 }

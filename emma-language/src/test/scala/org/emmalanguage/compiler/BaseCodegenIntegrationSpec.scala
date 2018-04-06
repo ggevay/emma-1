@@ -70,6 +70,8 @@ abstract class BaseCodegenIntegrationSpec extends FreeSpec
     val expTree = expPipeline(e)
     val actRslt = withBackendContext(eval[Env => T](actTree))
     val expRslt = withBackendContext(eval[Env => T](expTree))
+    println("actRslt: " + actRslt)
+    println("expRslt: " + expRslt)
     actRslt shouldEqual expRslt
   }
 
