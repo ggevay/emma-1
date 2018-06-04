@@ -458,4 +458,16 @@ class SourceLangSpec extends BaseCompilerSpec {
       }
     }
   }
+
+  "aaaa" - {
+    "bbbb" in {
+
+      val t = reify {
+        val x = 7
+        x
+      }
+
+      println(Source.valid(t.tree))
+    }
+  }
 }
