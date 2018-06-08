@@ -56,6 +56,7 @@ trait RuntimeCompilerAware {
   def execute[T](cfg: Config)(e: u.Expr[T]): Env => T = {
     // construct the compilation pipeline
     val xfms = transformations(cfg) :+ addContext
+    //val xfms = addContext +: transformations(cfg)
     // construct the eval function
     val eval = cfg.getString("emma.compiler.eval") match {
       case "naive" => NaiveEval(pipeline(typeCheck = true)(xfms: _*)) _
@@ -72,8 +73,22 @@ trait RuntimeCompilerAware {
   }
 
   protected lazy val addContext = TreeTransform("RuntimeCompilerAware.addContext", tree => {
-    import u.Quasiquote
-    q"(env: $Env) => { implicit val e: $Env = env; $tree }"
+    // This is equivalent to the following:
+    //import u.Quasiquote
+    //q"(env: $Env) => { implicit val e: $Env = env; $tree }"
+
+    // Note that instead of making an implicit ValDef inside the lambda,
+    // it would be good to make the parameter of the lambda implicit.
+    // However, showCode prints such code incorrectly. See
+    // https://github.com/scala/bug/issues/10936
+
+    val envSym = compiler.api.ParSym(compiler.api.Owner.encl, compiler.api.TermName.fresh("env"), Env)
+    val eValDef = compiler.api.ValDef(
+      compiler.api.ValSym(compiler.api.Owner.encl, compiler.api.TermName.fresh("e"), Env, u.Flag.IMPLICIT),
+      compiler.api.ParRef(envSym)
+    )
+    val body = compiler.api.Block(Seq(eValDef), tree)
+    compiler.api.Lambda(Seq(envSym), body)
   })
 
   /** Adds a [[File]] to the classpath. */

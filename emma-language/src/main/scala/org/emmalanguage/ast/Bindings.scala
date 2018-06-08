@@ -95,7 +95,7 @@ trait Bindings { this: AST =>
        * @param rhs The value of this binding (empty by default), owned by `lhs`.
        * @return `[val|var] lhs [= rhs]`.
        */
-      def apply(lhs: u.TermSymbol, rhs: u.Tree = Empty()): u.ValDef = {
+      def apply(lhs: u.TermSymbol, rhs: u.Tree = Empty(), alwaysSetTpt: Boolean = false): u.ValDef = {
         assert(is.defined(lhs), s"$this LHS is not defined")
         assert(is.binding(lhs), s"$this LHS $lhs is not a binding")
         assert(has.nme(lhs),    s"$this LHS $lhs has no name")
@@ -109,7 +109,7 @@ trait Bindings { this: AST =>
             |(lhs: `$lhs`, rhs:\n`${u.showCode(rhs)}`\n)
             |""".stripMargin.trim)
           (Owner.at(lhs)(rhs),
-            if (lhs.info =:= rhs.tpe.dealias.widen) TypeQuote.empty
+            if (lhs.info =:= rhs.tpe.dealias.widen && !alwaysSetTpt) TypeQuote.empty
             else TypeQuote(lhs.info))
         } else {
           assert(lhs.isParameter, s"$this RHS cannot be empty")

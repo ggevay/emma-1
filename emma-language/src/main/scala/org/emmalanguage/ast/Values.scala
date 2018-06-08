@@ -94,11 +94,11 @@ trait Values { this: AST =>
        * @param rhs The RHS of this value, owned by `lhs`.
        * @return `val lhs = rhs`.
        */
-      def apply(lhs: u.TermSymbol, rhs: u.Tree): u.ValDef = {
+      def apply(lhs: u.TermSymbol, rhs: u.Tree, alwaysSetTpt: Boolean = false): u.ValDef = {
         assert(is.defined(lhs), s"$this LHS is not defined")
         assert(is.value(lhs),   s"$this LHS $lhs is not a value")
         assert(is.defined(rhs), s"$this RHS is not defined")
-        BindingDef(lhs, rhs)
+        BindingDef(lhs, rhs, alwaysSetTpt)
       }
 
       def unapply(bind: u.ValDef): Option[(u.TermSymbol, u.Tree)] = bind match {
