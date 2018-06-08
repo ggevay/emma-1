@@ -57,8 +57,8 @@ abstract class BaseCodegenIntegrationSpec extends FreeSpec
 
   lazy val actPipeline: u.Expr[Any] => u.Tree =
     pipeline(typeCheck = true)(
-      transformations(loadConfig(baseConfig)) :+ addContext : _*
-      //addContext +: transformations(loadConfig(baseConfig)): _*
+      //transformations(loadConfig(baseConfig)) :+ addContext : _*
+      addContext +: transformations(loadConfig(baseConfig)): _*
     ).compose(_.tree)
 
   lazy val expPipeline: u.Expr[Any] => u.Tree =

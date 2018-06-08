@@ -55,8 +55,8 @@ trait RuntimeCompilerAware {
 
   def execute[T](cfg: Config)(e: u.Expr[T]): Env => T = {
     // construct the compilation pipeline
-    val xfms = transformations(cfg) :+ addContext
-    //val xfms = addContext +: transformations(cfg)
+    //val xfms = transformations(cfg) :+ addContext
+    val xfms = addContext +: transformations(cfg)
     // construct the eval function
     val eval = cfg.getString("emma.compiler.eval") match {
       case "naive" => NaiveEval(pipeline(typeCheck = true)(xfms: _*)) _
