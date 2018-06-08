@@ -451,8 +451,15 @@ trait CommonAST {
       def seq(name: String, seq: Seq[Dom], time: Boolean): Dom =
         Function.chain(seq)
 
-      def fun(name: String, fun: Xfrm.Fun, time: Boolean): Dom =
-        fun
+      def fun(name: String, fun: Xfrm.Fun, time: Boolean): Dom = tree => {
+        val rslt = fun(tree)
+
+        println(s"--------------- After $name:")
+        println(rslt.toString())
+        println("---------------")
+
+        rslt
+      }
     }) _
 
     override def apply(xfrm: Xfrm)(tree: u.Tree): u.Tree =
