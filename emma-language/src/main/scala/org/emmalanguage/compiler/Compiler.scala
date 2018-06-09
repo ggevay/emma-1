@@ -44,7 +44,8 @@ trait Compiler extends AlphaEq
   with Core
   with GenericBackend
   with GraphTools
-  with Optimizations {
+  with Optimizations
+  with Squid {
 
   import UniverseImplicits._
 

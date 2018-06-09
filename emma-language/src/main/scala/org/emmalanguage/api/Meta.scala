@@ -18,6 +18,8 @@ package api
 
 import scala.reflect.ClassTag
 
+import scala.language.implicitConversions
+
 // -----------------------------------------------------
 // types supported by Emma
 // -----------------------------------------------------
@@ -27,6 +29,26 @@ object Meta {
   object Projections {
     implicit def ctagFor[T](implicit meta: Meta[T]): ClassTag[T] =
       ClassTag[T](meta.mirror.runtimeClass(meta.tpe))
+
+
+
+//    implicit def aaa[T](t: (scala.reflect.api.JavaUniverse)#TypeTag[T]): reflect.runtime.universe.TypeTag[T] = {
+//      t.asInstanceOf[reflect.runtime.universe.TypeTag[T]]
+//    }
+
+
+//    implicit def aaa[T](t: (scala.reflect.api.JavaUniverse)#TypeTag[T]): Meta[T] = {
+//      t.asInstanceOf[reflect.runtime.universe.TypeTag[T]]
+//    }
+
+    def bb() = {}
+
+    // https://github.com/epfldata/squid/issues/57#issuecomment-396255998
+    // But it's not working: It's not finding this implicit conversion, and I have zero idea why.
+    //  (I even tried adding import Meta.Projections._ inside the code of the first test in BaseCodegenIntegrationSpec)
+    implicit def aaa(t: (scala.reflect.api.JavaUniverse)#TypeTag[String]): org.emmalanguage.api.Meta[String] = {
+      t.asInstanceOf[reflect.runtime.universe.TypeTag[String]]
+    }
   }
 
 }

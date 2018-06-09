@@ -143,6 +143,12 @@
             <groupId>com.typesafe</groupId>
             <artifactId>config</artifactId>
         </dependency>
+
+        <!-- Squid -->
+        <dependency>
+            <groupId>ch.epfl.data</groupId>
+            <artifactId>squid_${scala.tools.version}</artifactId>
+        </dependency>
     </dependencies>
 
     <build>

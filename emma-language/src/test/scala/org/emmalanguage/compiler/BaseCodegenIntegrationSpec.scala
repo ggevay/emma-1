@@ -95,6 +95,10 @@ abstract class BaseCodegenIntegrationSpec extends FreeSpec
 
   "Filter" - {
     "strings" in verify(u.reify {
+
+      import Meta.Projections._
+      bb() // to not complain for unused import
+
       DataBag(jabberwocky) withFilter { _.length > 10 }
     })
 
