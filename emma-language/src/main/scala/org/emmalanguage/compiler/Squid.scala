@@ -125,9 +125,21 @@ trait Squid extends AST with Common {
     import u._
 
     val tree = preSquid(tree0)
+    println("Giving Squid the following tree: " + showCode(tree))
 
     object ME extends ModularEmbedding[u.type, IR.type](u, IR,
-      debug = str => println(str)) // change 'debug' to avoid polluting compile-time stdout
+      debug = str => println(str)) { // change 'debug' to avoid polluting compile-time stdout
+
+      override def unknownFeatureFallback(x: Tree, parent: Tree) = x match {
+
+        case Ident(TermName(name)) =>
+          base.hole(name, liftType(x.tpe))
+
+        case _ =>
+          super.unknownFeatureFallback(x, parent)
+
+      }
+    }
     val pgrm = IR.Code[Any, squid.utils.Bottom](ME(tree))
 
     //TODO: remove these prints
@@ -146,7 +158,7 @@ trait Squid extends AST with Common {
     val MB = new MBM.ScalaReflectionBase
     val res = IR.scalaTreeIn(MBM)(MB, pgrm2.rep, base.DefaultExtrudedHandler)
 
-    println("Generated Scala tree: " + showCode(res))
+    println("Squid gave back: " + showCode(res))
 
     //q"println($msg); $res"
 
