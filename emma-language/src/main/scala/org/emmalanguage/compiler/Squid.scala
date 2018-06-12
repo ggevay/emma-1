@@ -17,6 +17,10 @@ package org.emmalanguage
 package compiler
 
 import ast.AST
+import org.emmalanguage.compiler.lang.AlphaEq
+import org.emmalanguage.compiler.lang.cf.ControlFlow
+import org.emmalanguage.compiler.lang.core.Core
+import org.emmalanguage.compiler.lang.source.Source
 
 import squid.ir.SimpleAST
 import squid.ir.TopDownTransformer
@@ -25,7 +29,9 @@ import squid.quasi.ModularEmbedding
 
 // !! You have to locally build Squid, see comment in the top-level pom.xml at <squid.version>
 
-trait Squid extends AST with Common {
+trait Squid extends AST with Common
+  with AlphaEq with Source with ControlFlow
+  with Core {
 
   import UniverseImplicits._
 
@@ -52,13 +58,15 @@ trait Squid extends AST with Common {
 
 
   lazy val preSquid = TreeTransform("preSquid", Seq(
-    addValDefTpts,
-    addImplicitPlaceholders
+    Core.dscfInv,
+    addImplicitPlaceholders,
+    addValDefTpts
   ))
 
   lazy val postSquid = TreeTransform("postSquid", Seq(
     TreeTransform("Compiler.typeCheck (after Squid)", (tree: u.Tree) => this.typeCheck(tree)),
     preProcess,
+    Core.dscf, // FIXME: how do I make sure to call this only if we were in DSCF before Squid
     changeToResolveNow
   ))
 
@@ -156,7 +164,7 @@ trait Squid extends AST with Common {
     // putting things back into Scala (untyped trees):
     object MBM extends MetaBases {
       val u: Squid.this.u.type = Squid.this.u
-      def freshName(hint: String) = api.TermName.fresh(hint) //u.freshTermName(TermName(hint))
+      def freshName(hint: String) = api.TermName.fresh(hint)
     }
     val MB = new MBM.ScalaReflectionBase
     val res = IR.scalaTreeIn(MBM)(MB, pgrm2.rep, base.DefaultExtrudedHandler)
