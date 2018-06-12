@@ -52,15 +52,21 @@ trait Squid extends AST with Common {
 
 
   lazy val preSquid = TreeTransform("preSquid", Seq(
-    addValDefTpt
-    ,addImplicitPlaceholders
+    addValDefTpts,
+    addImplicitPlaceholders
+  ))
+
+  lazy val postSquid = TreeTransform("postSquid", Seq(
+    TreeTransform("Compiler.typeCheck (after Squid)", (tree: u.Tree) => this.typeCheck(tree)),
+    preProcess,
+    changeToResolveNow
   ))
 
 
   // Squid expects tpt to be filled, but we keep it not filled for ValDefs
   // (because of https://github.com/emmalanguage/emma/issues/234)
   // So fill it now.
-  lazy val addValDefTpt = TreeTransform("AddValDefTpt", (t: u.Tree) => {
+  lazy val addValDefTpts = TreeTransform("AddValDefTpts", (t: u.Tree) => {
     api.TopDown.transform {
       case api.ValDef(lhs, rhs) => api.ValDef(lhs, rhs, true)
     }(t).tree
@@ -125,7 +131,9 @@ trait Squid extends AST with Common {
     import u._
 
     val tree = preSquid(tree0)
-    println("Giving Squid the following tree: " + showCode(tree))
+
+    //TODO: remove these prints
+    println("--- Giving Squid the following tree:\n" + showCode(tree))
 
     object ME extends ModularEmbedding[u.type, IR.type](u, IR,
       debug = str => println(str)) { // change 'debug' to avoid polluting compile-time stdout
@@ -140,15 +148,10 @@ trait Squid extends AST with Common {
 
       }
     }
+
     val pgrm = IR.Code[Any, squid.utils.Bottom](ME(tree))
 
-    //TODO: remove these prints
-
-    println(s"FIRST >> ${pgrm}")
     val pgrm2 = pgrm transformWith Tr
-
-    println(s"SECOND >> ${pgrm2}")
-    //val msg = s"[At compile time:]\n\tOriginal program: $pgrm\n\tTransformed program: $pgrm2"
 
     // putting things back into Scala (untyped trees):
     object MBM extends MetaBases {
@@ -158,12 +161,10 @@ trait Squid extends AST with Common {
     val MB = new MBM.ScalaReflectionBase
     val res = IR.scalaTreeIn(MBM)(MB, pgrm2.rep, base.DefaultExtrudedHandler)
 
-    println("Squid gave back: " + showCode(res))
+    println("--- Squid gave back:\n" + showCode(res))
 
-    //q"println($msg); $res"
-
-
-    changeToResolveNow(preProcess(typeCheck(res)))
+    //changeToResolveNow(preProcess(typeCheck(res)))
+    postSquid(res)
   })
 
 }
