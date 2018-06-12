@@ -25,7 +25,7 @@ import squid.quasi.ModularEmbedding
 
 // !! You have to locally build Squid, see comment in the top-level pom.xml at <squid.version>
 
-trait Squid extends AST {
+trait Squid extends AST with Common {
 
   import UniverseImplicits._
 
@@ -102,7 +102,7 @@ trait Squid extends AST {
   lazy val changeToResolveNow = TreeTransform("changeToResolveNow", (t: u.Tree) => {
     api.TopDown.transform {
       case api.DefCall(target, method, targs, argss)
-        if method.name.toString.contains("resolveLater") =>
+        if method == resolveLaterMirror =>
         api.DefCall(target, resolveNowMirror, targs, argss)
     }(t).tree
   })
@@ -151,11 +151,7 @@ trait Squid extends AST {
     //q"println($msg); $res"
 
 
-    // TODO: We should actually call our whole preprocess pipeline after typechecking (it's not too much time)
-    //
-    // Note: If you remove the typecheck, you can at least test whether Squid can get the trees we give to it
-    // into its IR. And actually, there are several random issues with trees in BaseCodegenIntegrationSpec.
-    changeToResolveNow(typeCheck(res))
+    changeToResolveNow(preProcess(typeCheck(res)))
   })
 
 }

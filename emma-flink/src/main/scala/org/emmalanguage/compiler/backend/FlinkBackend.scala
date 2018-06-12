@@ -58,15 +58,17 @@ private[compiler] trait FlinkBackend extends Common with Squid {
     } yield srcOp -> tgtOp) (breakOut): Map[u.MethodSymbol, u.MethodSymbol]
 
     /** Specialize backend for Flink. */
-    val transform = TreeTransform("FlinkBackend.transform", tree => {
-      val G = ControlFlow.cfg(tree)
-      val C = Context.bCtxGraph(G)
-      val V = G.data.labNodes.map(_.label)
+    val transform = TreeTransform("FlinkBackend.transform", tree0 => {
 
       // Just to test if it works if we call Squid at a random place inside our pipeline.
       // FIXME: We should create an actual test for this.
       // Note that this doesn't try to continue working with the tree that Squid gave us.
-      testSquid(tree)
+      val tree = testSquid(tree0)
+
+
+      val G = ControlFlow.cfg(tree)
+      val C = Context.bCtxGraph(G)
+      val V = G.data.labNodes.map(_.label)
 
       // 1) construct "lambdas that need to be adapted" -> "adapted lambdas" map
       val broadcastLambdas = (for {
