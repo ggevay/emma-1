@@ -42,7 +42,8 @@ trait Squid extends AST with Common
   lazy val preSquid = TreeTransform("preSquid", Seq(
     Core.dscfInv,
     addImplicitPlaceholders,
-    addValAndVarDefTpts
+    addValAndVarDefTpts,
+    qualifyStatics
   ))
 
   // TODO: maybe we should also call ANF here? Or the tree that Squid gives back is always in ANF (in our sense)?
