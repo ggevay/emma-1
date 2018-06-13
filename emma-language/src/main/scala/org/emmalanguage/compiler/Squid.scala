@@ -43,7 +43,7 @@ trait Squid extends AST with Common
     Core.dscfInv,
     addImplicitPlaceholders,
     addValAndVarDefTpts,
-    qualifyStatics
+    postProcess
   ))
 
   // TODO: maybe we should also call ANF here? Or the tree that Squid gives back is always in ANF (in our sense)?
