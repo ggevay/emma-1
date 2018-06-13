@@ -81,6 +81,7 @@ trait Compiler extends AlphaEq
     if (typeCheck) bld += TreeTransform("Compiler.typeCheck", (tree: u.Tree) => this.typeCheck(tree))
     if (withPre)   bld += preProcess
     bld ++= transformations
+    //bld += TreeTransform("testSquid", (tree: u.Tree) => testSquid(tree))
     if (withPost)  bld += postProcess
     //@formatter:on
     val steps = bld.result()
