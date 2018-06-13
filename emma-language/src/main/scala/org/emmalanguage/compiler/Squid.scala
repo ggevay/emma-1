@@ -45,6 +45,7 @@ trait Squid extends AST with Common
     addValAndVarDefTpts
   ))
 
+  // TODO: maybe we should also call ANF here? Or the tree that Squid gives back is always in ANF (in our sense)?
   lazy val postSquid = TreeTransform("postSquid", Seq(
     TreeTransform("Compiler.typeCheck (after Squid)", (tree: u.Tree) => this.typeCheck(tree)),
     removeVarMutTpts,
