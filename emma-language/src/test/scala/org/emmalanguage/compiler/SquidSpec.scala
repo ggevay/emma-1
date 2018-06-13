@@ -23,14 +23,8 @@ class SquidSpec extends BaseCompilerSpec {
 
   val squidPipeline: u.Expr[Any] => u.Tree =
     pipeline(typeCheck = true)(
-      testSquid,
-      // The following is needed because Squid gives stuff like
-      // scala.Predef.println(42)
-      // but we want
-      // _root_.scala.Predef.println(42)
-      unQualifyStatics, qualifyStatics
+      testSquid
     ).compose(_.tree)
-
 
 
   "aaaaa" in {
