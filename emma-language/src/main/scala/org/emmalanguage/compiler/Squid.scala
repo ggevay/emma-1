@@ -149,8 +149,38 @@ trait Squid extends AST with Common
     //TODO: remove these prints
     println("--- Giving Squid the following tree:\n" + showCode(tree))
 
+    val thisNames = collection.mutable.Set[Name]()
+
     object ME extends ModularEmbedding[u.type, IR.type](u, IR,
-      debug = str => println(str)) { // change 'debug' to avoid polluting compile-time stdout
+      debug = str => println(str)) { // TODO: change 'debug' to avoid polluting compile-time stdout
+
+      // See https://github.com/emmalanguage/emma/issues/369#issuecomment-397022718
+      override def liftTerm(x: Tree, parent: Tree, expectedType: Option[Type], inVarargsPos: Boolean = false)
+        (implicit ctx: Map[TermSymbol, IR.BoundVal]): IR.Rep = x match {
+        case Select(This(typName),fieldName)
+          if x.symbol != null
+            && (x.symbol.isParameter || x.symbol.isMethod || x.symbol.isPrivateThis)
+          // otherwise we capture things like `scala.collection.immutable`
+          /* ^ we make a special case for `isPrivateThis` because it is the only case (I know of) where a class field
+              will
+              not have `isMethod` return true... that's still a heuristic (what if non-fields/parameters are
+              PrivateThis?) */
+          /*  The solution above (a case guarded by ad-hoc conditions) is not relly satisfying.
+              We're going to capture method references that may have a static path to them and would be better with a
+              static access.
+              Ideally we'd check whether there is a static (and accessible from reflection) path first in the guard of
+              the case.
+              OTOH, does it really happen to have a static path to a local method, that will be accessible via the QQ's
+              relfection?
+              Note: `!x.symbol.isPackage` is not enough, as then we end up with things like the `List` of
+              `scala.immutable.List` */
+        =>
+          //val thisName = s"$typName:this:$fieldName"
+          val thisName = s"$typName.this.$fieldName"
+          thisNames += TermName(thisName)
+          base.hole(thisName, liftType(x.tpe))
+        case _ => super.liftTerm(x,parent,expectedType,inVarargsPos)
+      }
 
       override def unknownFeatureFallback(x: Tree, parent: Tree) = x match {
 
@@ -177,7 +207,17 @@ trait Squid extends AST with Common
 
     println("--- Squid gave back:\n" + showCode(res0))
 
-    val res = postSquid(res0)
+    // See https://github.com/emmalanguage/emma/issues/369#issuecomment-397022718
+    // Do this before typecheck!
+    val res00 = api.TopDown.transform {
+      case Ident(name) if thisNames(name) =>
+        //val Seq(typ,ths,field) = name.toString.splitSane(':')
+        import squid.utils.StringOps
+        val Seq(typ,ths,field) = name.toString.splitSane('.')
+        Select(This(TypeName(typ)),TermName(field))
+    }(res0).tree
+
+    val res = postSquid(res00)
     println("--- After postSquid:\n" + showCode(res))
     res
   })
