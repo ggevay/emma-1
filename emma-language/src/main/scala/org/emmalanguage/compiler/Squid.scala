@@ -39,24 +39,6 @@ trait Squid extends AST with Common
   import IR.Predef._
 
 
-
-
-  lazy val implicitPlaceholdersModuleSym = api.Sym[org.emmalanguage.util.ImplicitPlaceholders.type].asModule
-  lazy val resolveLaterMirror = implicitPlaceholdersModuleSym
-    .info.member(api.TermName("resolveLater")).alternatives.collectFirst({
-    case api.DefSym(m) => m
-  }).get
-  lazy val resolveNowMirror = implicitPlaceholdersModuleSym
-    .info.member(api.TermName("resolveNow")).alternatives.collectFirst({
-    case api.DefSym(m) => m
-  }).get
-
-
-
-
-
-
-
   lazy val preSquid = TreeTransform("preSquid", Seq(
     Core.dscfInv,
     addImplicitPlaceholders,
@@ -124,8 +106,6 @@ trait Squid extends AST with Common
     }(t).tree
   })
 
-
-
   // FIXME: move this to postProcess (because like this there can't be more than one Squid transform in a pipeline)
   lazy val changeToResolveNow = TreeTransform("changeToResolveNow", (t: u.Tree) => {
     api.TopDown.transform {
@@ -134,6 +114,17 @@ trait Squid extends AST with Common
         api.DefCall(target, resolveNowMirror, targs, argss)
     }(t).tree
   })
+
+  lazy val implicitPlaceholdersModuleSym = api.Sym[org.emmalanguage.util.ImplicitPlaceholders.type].asModule
+  lazy val resolveLaterMirror = implicitPlaceholdersModuleSym
+    .info.member(api.TermName("resolveLater")).alternatives.collectFirst({
+    case api.DefSym(m) => m
+  }).get
+  lazy val resolveNowMirror = implicitPlaceholdersModuleSym
+    .info.member(api.TermName("resolveNow")).alternatives.collectFirst({
+    case api.DefSym(m) => m
+  }).get
+
 
 
 
