@@ -60,13 +60,14 @@ trait Squid extends AST with Common
   lazy val preSquid = TreeTransform("preSquid", Seq(
     Core.dscfInv,
     addImplicitPlaceholders,
-    addValDefTpts
+    addValAndVarDefTpts
   ))
 
   lazy val postSquid = TreeTransform("postSquid", Seq(
     TreeTransform("Compiler.typeCheck (after Squid)", (tree: u.Tree) => this.typeCheck(tree)),
+    removeVarMutTpts,
     preProcess,
-    Core.dscf, // FIXME: how do I make sure to call this only if we were in DSCF before Squid
+    Core.dscf, // FIXME: make sure to call this only if we were in DSCF before Squid
     changeToResolveNow
   ))
 
@@ -74,9 +75,22 @@ trait Squid extends AST with Common
   // Squid expects tpt to be filled, but we keep it not filled for ValDefs
   // (because of https://github.com/emmalanguage/emma/issues/234)
   // So fill it now.
-  lazy val addValDefTpts = TreeTransform("AddValDefTpts", (t: u.Tree) => {
+  lazy val addValAndVarDefTpts = TreeTransform("addValAndVarDefTpts", (t: u.Tree) => {
     api.TopDown.transform {
       case api.ValDef(lhs, rhs) => api.ValDef(lhs, rhs, true)
+      case api.VarDef(lhs, rhs) => api.VarDef(lhs, rhs, true)
+    }(t).tree
+  })
+
+
+  // I don't really understand why is this necessary, but here is what happens:
+  // There is a transformation in DSCF that removes VarMuts, which causes the typeSafe assert in Transversers.scala
+  // to fail (<notype> <!:< Unit), if the VarMut had a tpt (Unit).
+  // What I don't understand is what is it in our pipeline that removes the tpts from VarMuts under normal
+  // circumstances, i.e., why haven't we run into this problem before.
+  lazy val removeVarMutTpts = TreeTransform("removeVarMutTpts", (t: u.Tree) => {
+    api.TopDown.unsafe.transform {
+      case api.VarMut(lhs, rhs) => api.VarMut(lhs, rhs) // VarMut.apply has setType(mut, Type.none) at the end
     }(t).tree
   })
 
@@ -167,12 +181,13 @@ trait Squid extends AST with Common
       def freshName(hint: String) = api.TermName.fresh(hint)
     }
     val MB = new MBM.ScalaReflectionBase
-    val res = IR.scalaTreeIn(MBM)(MB, pgrm2.rep, base.DefaultExtrudedHandler)
+    val res0 = IR.scalaTreeIn(MBM)(MB, pgrm2.rep, base.DefaultExtrudedHandler)
 
-    println("--- Squid gave back:\n" + showCode(res))
+    println("--- Squid gave back:\n" + showCode(res0))
 
-    //changeToResolveNow(preProcess(typeCheck(res)))
-    postSquid(res)
+    val res = postSquid(res0)
+    println("--- After postSquid:\n" + showCode(res))
+    res
   })
 
 }
