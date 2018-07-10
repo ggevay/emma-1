@@ -64,14 +64,6 @@ object LabyrinthExamplesRunner extends LabyrinthAware {
         c
       })
 
-    section("Graph Analytics")
-    cmd("triangle-count")
-      .text("Count the number of triangle cliques in a graph")
-      .children(
-        arg[String]("input")
-          .text("edges path")
-          .action((x, c) => c.copy(input = x)))
-
     section("Text Analytics")
     cmd("word-count")
       .text("Word Count Example")
@@ -89,9 +81,6 @@ object LabyrinthExamplesRunner extends LabyrinthAware {
       cfg <- parser.parse(args, Config())
       cmd <- cfg.command
       res <- cmd match {
-//        // Graphs
-//        case "triangle-count" =>
-//          Some(triangleCount(cfg)(flinkEnv(cfg)))
         // Text
         case "word-count" =>
           Some(wordCount(cfg)(flinkEnv(cfg)))
@@ -106,22 +95,6 @@ object LabyrinthExamplesRunner extends LabyrinthAware {
 
   implicit def breezeVectorCSVConverter[V: CSVColumn : ClassTag]: CSVConverter[Vec[V]] =
     CSVConverter.iso[Array[V], Vec[V]](Iso.make(Vec.apply, _.toArray), implicitly)
-
-  // Graphs
-
-//  def triangleCount(c: Config)(implicit flink: StreamExecutionEnvironment): Unit =
-//    emma.onLabyrinth {
-//      // convert a bag of directed edges into an undirected set
-//      val incoming = DataBag.readCSV[Edge[Long]](c.input, c.csv)
-//      val outgoing = incoming.map(e => Edge(e.dst, e.src))
-//      val edges = (incoming union outgoing).distinct
-//      // compute all triangles
-//      val triangles = EnumerateTriangles(edges)
-//      // count the number of enumerated triangles
-//      val triangleCount = triangles.size
-//      // print the result to the console
-//      println(s"The number of triangles in the graph is $triangleCount")
-//    }
 
   def wordCount(c: Config)(implicit flink: StreamExecutionEnvironment): Unit =
 
