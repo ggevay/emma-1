@@ -27,7 +27,8 @@ object ClickCountDiffs {
 
     // (no join with pageAttributes yet)
     var yesterdayCounts: DataBag[(Int, Int)] = DataBag.empty // should be null, but the compilation doesn't handle it
-    for(day <- 1 to numDays) {
+    var day = 1
+    while (day < numDays) {
       // Read all page-visits for this day
       val visits: DataBag[Int] = DataBag.readText(baseInName + day).map(Integer.parseInt) // integer pageIDs
       // Count how many times each page was visited:
@@ -48,6 +49,7 @@ object ClickCountDiffs {
         scala.tools.nsc.io.File(baseName + day + ".out").writeAll(sum.toString)
       }
       yesterdayCounts = counts
+      day += 1
     }
 
   }
