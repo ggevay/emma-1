@@ -22,13 +22,12 @@ import api._
 object ClickCountDiffs {
 
   def apply(baseName: String, numDays: Int): Unit = {
-
     val baseInName = baseName
 
     // (no join with pageAttributes yet)
     var yesterdayCounts: DataBag[(Int, Int)] = DataBag.empty // should be null, but the compilation doesn't handle it
     var day = 1
-    while (day < numDays) {
+    while (day <= numDays) {
       // Read all page-visits for this day
       val visits: DataBag[Int] = DataBag.readText(baseInName + day).map(Integer.parseInt) // integer pageIDs
       // Count how many times each page was visited:
