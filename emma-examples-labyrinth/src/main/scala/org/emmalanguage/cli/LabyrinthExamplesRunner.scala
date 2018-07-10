@@ -23,8 +23,6 @@ import breeze.linalg.{Vector => Vec}
 import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
 
 import scala.reflect.ClassTag
-import examples.graphs.EnumerateTriangles
-import examples.graphs.model._
 import examples.text._
 
 object LabyrinthExamplesRunner extends LabyrinthAware {

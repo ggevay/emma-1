@@ -23,7 +23,6 @@ import api.alg.Count
 import labyrinth._
 import labyrinth.operators._
 import labyrinth.partitioners._
-import org.emmalanguage.api.alg.Reduce
 import org.emmalanguage.api.backend.LocalOps
 import org.emmalanguage.compiler.ir.DSCFAnnotations.loopBody
 import org.emmalanguage.compiler.ir.DSCFAnnotations.suffix
@@ -33,7 +32,6 @@ import org.apache.flink.core.fs.FileInputSplit
 
 import java.util.UUID
 
-//import org.apache.flink.api.scala._
 import org.apache.flink.api.common.ExecutionConfig
 import org.apache.flink.api.java.tuple.Tuple2
 

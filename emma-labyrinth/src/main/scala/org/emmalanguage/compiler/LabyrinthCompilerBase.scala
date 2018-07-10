@@ -411,6 +411,10 @@ object Memo {
       createTypeInformation
     )
     memoizeTypeInfo(
+      implicitly[org.emmalanguage.api.Meta[scala.util.Either[Int,org.emmalanguage.io.csv.CSV]]],
+      createTypeInformation
+    )
+    memoizeTypeInfo(
       implicitly[org.emmalanguage.api.Meta[scala.util.Either[(Int, Int),(Int, Int)]]],
       createTypeInformation
     )

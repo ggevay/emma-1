@@ -44,12 +44,14 @@ object ClickCountDiffs {
             if c._1 == y._1
           } yield Math.abs(c._2 - y._2)
         val sum = diffs.reduce(0)((x: Int, y: Int) => x + y)
-        //println(sum)
-        scala.tools.nsc.io.File(baseName + day + ".out").writeAll(sum.toString)
+        DataBag(Seq(sum)).writeCSV(baseName + day + ".out", csvConfig)
       }
       yesterdayCounts = counts
       day += 1
     }
 
   }
+
+  val csvConfig = CSV()
+  
 }
