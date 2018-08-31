@@ -20,7 +20,6 @@ package org.emmalanguage.labyrinth;
 import eu.stratosphere.labyrinth.BagID;
 import eu.stratosphere.labyrinth.CFLCallback;
 import eu.stratosphere.labyrinth.CFLManager;
-import org.apache.flink.streaming.api.operators.StreamingRuntimeContext;
 import org.emmalanguage.labyrinth.operators.ReusingBagOperator;
 import org.emmalanguage.labyrinth.operators.BagOperator;
 import org.emmalanguage.labyrinth.operators.DontThrowAwayInputBufs;
@@ -364,7 +363,12 @@ public class BagOperatorHost<IN, OUT>
 			} else {
 				if (CFLConfig.vlog) LOG.info("Out.closeBag not starting a new out bag {" + name + "}");
 				if (terminalBBReached) { // if there is no pending work, and none would come later
-					cflMan.unsubscribe(cb);
+					new Thread(new Runnable() {
+						@Override
+						public void run() {
+							cflMan.unsubscribe(cb);
+						}
+					}).start();
 					es.shutdown();
 				}
 			}
@@ -548,11 +552,11 @@ public class BagOperatorHost<IN, OUT>
 	private class MyCFLCallback implements CFLCallback {
 
 		public void notify(List<Integer> cfl0) {
-			synchronized (es) {
-				List<Integer> cfl = new ArrayList<>(cfl0);
-				es.submit(new Runnable() {
-					@Override
-					public void run() {
+//			synchronized (es) {
+				List<Integer> cfl = cfl0; ///////////new ArrayList<>(cfl0);
+//				es.submit(new Runnable() {
+//					@Override
+//					public void run() {
 						try {
 							synchronized (BagOperatorHost.this) {
 								latestCFL = cfl;
@@ -580,9 +584,9 @@ public class BagOperatorHost<IN, OUT>
 							System.err.println(ExceptionUtils.stringifyException(t));
 							System.exit(8);
 						}
-					}
-				});
-			}
+//					}
+//				});
+//			}
 		}
 
 		@Override
@@ -590,10 +594,10 @@ public class BagOperatorHost<IN, OUT>
 			// If this doesn't go through es, then we have the problem that notify submits on subscribe,
 			// and this notify would have to insert something into outCFLSizes, but it hasn't inserted it yet
 			// when we reach the outCFLSizes check here.
-			synchronized (es) {
-				es.submit(new Runnable() {
-					@Override
-					public void run() {
+//			synchronized (es) {
+//				es.submit(new Runnable() {
+//					@Override
+//					public void run() {
 						try {
 							LOG.info("CFL notifyTerminalBB {" + name + "}");
 							synchronized (BagOperatorHost.this) {
@@ -601,7 +605,12 @@ public class BagOperatorHost<IN, OUT>
 								if (outCFLSizes.isEmpty()) {
 									// We have to unsubscribe before shutdown, because we get broadcast notifications
 									// even when we are finished, when others are still working.
-									cflMan.unsubscribe(cb);
+									new Thread(new Runnable() {
+										@Override
+										public void run() {
+											cflMan.unsubscribe(cb);
+										}
+									}).start();
 									es.shutdown();
 								}
 							}
@@ -610,58 +619,99 @@ public class BagOperatorHost<IN, OUT>
 							System.err.println(ExceptionUtils.stringifyException(t));
 							System.exit(8);
 						}
-					}
-				});
-			}
+//					}
+//				});
+//			}
 		}
 
+//		@Override
+//		public void notifyCloseInput(BagID bagID, int opID) {
+//			if (opID == BagOperatorHost.this.opID || opID == CFLManager.CloseInputBag.emptyBag) {
+////				synchronized (es) {
+////					es.submit(new Runnable() {
+////						@Override
+////						public void run() {
+//							try {
+//								synchronized (BagOperatorHost.this) {
+//									assert !notifyCloseInputs.contains(bagID);
+//									notifyCloseInputs.add(bagID);
+//
+//									if (opID == CFLManager.CloseInputBag.emptyBag) {
+//										notifyCloseInputEmpties.add(bagID);
+//									}
+//
+//									for (Input inp : inputs) {
+//										//assert inp.currentBagID != null; // This no longer works, because we broadcast closeInput
+//										if (bagID.equals(inp.currentBagID)) {
+//
+//											if (opID == CFLManager.CloseInputBag.emptyBag) {
+//												// The EmptyFromEmpty marker interface is not needed here, because consumed = true doesn't mess up things
+//												// even when the result bag will not be empty.
+//												consumed = true;
+//											}
+//
+//											inp.closeCurrentInBag();
+//										}
+//									}
+//								}
+//							} catch (Throwable t) {
+//								LOG.error("Unhandled exception in MyCFLCallback.notifyCloseInput: " + ExceptionUtils.stringifyException(t));
+//								System.err.println(ExceptionUtils.stringifyException(t));
+//								System.exit(8);
+//							}
+////						}
+////					});
+////				}
+//			}
+//		}
+
 		@Override
-		public void notifyCloseInput(BagID bagID, int opID) {
+		public Runnable notifyCloseInput(BagID bagID, int opID) {
 			if (opID == BagOperatorHost.this.opID || opID == CFLManager.CloseInputBag.emptyBag) {
-				synchronized (es) {
-					es.submit(new Runnable() {
-						@Override
-						public void run() {
-							try {
-								synchronized (BagOperatorHost.this) {
-									assert !notifyCloseInputs.contains(bagID);
-									notifyCloseInputs.add(bagID);
+				return new Runnable() {
+					@Override
+					public void run() {
+						try {
+							synchronized (BagOperatorHost.this) {
+								assert !notifyCloseInputs.contains(bagID);
+								notifyCloseInputs.add(bagID);
 
-									if (opID == CFLManager.CloseInputBag.emptyBag) {
-										notifyCloseInputEmpties.add(bagID);
-									}
+								if (opID == CFLManager.CloseInputBag.emptyBag) {
+									notifyCloseInputEmpties.add(bagID);
+								}
 
-									for (Input inp : inputs) {
-										//assert inp.currentBagID != null; // This no longer works, because we broadcast closeInput
-										if (bagID.equals(inp.currentBagID)) {
+								for (Input inp : inputs) {
+									//assert inp.currentBagID != null; // This no longer works, because we broadcast closeInput
+									if (bagID.equals(inp.currentBagID)) {
 
-											if (opID == CFLManager.CloseInputBag.emptyBag) {
-												// The EmptyFromEmpty marker interface is not needed here, because consumed = true doesn't mess up things
-												// even when the result bag will not be empty.
-												consumed = true;
-											}
-
-											inp.closeCurrentInBag();
+										if (opID == CFLManager.CloseInputBag.emptyBag) {
+											// The EmptyFromEmpty marker interface is not needed here, because consumed = true doesn't mess up things
+											// even when the result bag will not be empty.
+											consumed = true;
 										}
+
+										inp.closeCurrentInBag();
 									}
 								}
-							} catch (Throwable t) {
-								LOG.error("Unhandled exception in MyCFLCallback.notifyCloseInput: " + ExceptionUtils.stringifyException(t));
-								System.err.println(ExceptionUtils.stringifyException(t));
-								System.exit(8);
 							}
+						} catch (Throwable t) {
+							LOG.error("Unhandled exception in MyCFLCallback.notifyCloseInput: " + ExceptionUtils.stringifyException(t));
+							System.err.println(ExceptionUtils.stringifyException(t));
+							System.exit(8);
 						}
-					});
-				}
+					}
+				};
+			} else {
+				return null;
 			}
 		}
 
 		@Override
 		public void notifyBarrierAllReached(int cflSize) {
-			synchronized (es) {
-				es.submit(new Runnable() {
-					@Override
-					public void run() {
+//			synchronized (es) {
+//				es.submit(new Runnable() {
+//					@Override
+//					public void run() {
 						synchronized (BagOperatorHost.this) {
 							assert CFLManager.barrier;
 							barrierAllReachedCFLSize = cflSize;
@@ -675,9 +725,9 @@ public class BagOperatorHost<IN, OUT>
 								}
 							}
 						}
-					}
-				});
-			}
+//					}
+//				});
+//			}
 		}
 
 		@Override
