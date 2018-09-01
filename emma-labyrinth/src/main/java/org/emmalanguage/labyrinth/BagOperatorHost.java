@@ -44,6 +44,7 @@ import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
 
 
 public class BagOperatorHost<IN, OUT>
@@ -551,7 +552,7 @@ public class BagOperatorHost<IN, OUT>
 
 	private class MyCFLCallback implements CFLCallback {
 
-		public void notify(List<Integer> cfl0) {
+		public void notify(List<Integer> cfl0, Semaphore sem) {
 //			synchronized (es) {
 				List<Integer> cfl = cfl0; ///////////new ArrayList<>(cfl0);
 //				es.submit(new Runnable() {
@@ -587,6 +588,9 @@ public class BagOperatorHost<IN, OUT>
 //					}
 //				});
 //			}
+			if (sem != null) {
+				sem.release(1);
+			}
 		}
 
 		@Override

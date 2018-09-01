@@ -137,7 +137,7 @@ public class CFLITCase {
     public void testControlFlowMicrobenchmark() throws Exception {
         LabyNode.labyNodes.clear();
 
-        ControlFlowMicrobenchmark.main(new String[]{"100", "200"});
+        ControlFlowMicrobenchmark.main(new String[]{"1000", "200"});
     }
 
 //    @Test()
