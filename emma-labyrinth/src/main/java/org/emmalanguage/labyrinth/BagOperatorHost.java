@@ -726,9 +726,9 @@ public class BagOperatorHost<IN, OUT>
 		//    - if WAITING, then we send the buffer, and swtich to IDLE
 		//    - if FORWARDING then nothing
 
-		private byte splitId = -1;
-		private int targetBbId = -1;
-		public boolean normal = false; // not conditional
+		private final byte splitId;
+		private final int targetBbId;
+		public final boolean normal; // not conditional
 		public final Partitioner<OUT> partitioner;
 
 		private ArrayList<OUT> buffer = null;

@@ -41,7 +41,7 @@ import java.util.Arrays;
  * do {
  *     // BB 1
  *     i = i + 1
- *     coll.map{x => x + 1}
+ *     coll = coll.map{x => x + 1}
  * } while (i < 100)
  * // BB 2
  * assert i == 100

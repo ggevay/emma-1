@@ -141,6 +141,7 @@ public class LabyNode<IN, OUT> extends AbstractLabyNode<OUT> {
     }
 
     public static void translateAll(StreamExecutionEnvironment env) {
+        env.getConfig().setLatencyTrackingInterval(-1);
         try {
             for (AbstractLabyNode<?> ln : labyNodes) {
                 ln.translate(env);
