@@ -25,7 +25,13 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.core.fs.FileSystem;
 
-import java.io.Serializable;
+import java.io.*;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Random;
 
@@ -128,5 +134,51 @@ public class PageRankInputGen {
             n--;
             return ret;
         }
+    }
+
+    // =============================================
+    // Single-threaded version (allows for setting the random seed)
+    public static void generateWithSeed(String pref, int numDays, int clicksPerDayRatio, int numVertices, int numEdges, int rndSeed) throws Exception {
+        System.out.print("Generating PageRank input data... ");
+
+        Random rnd = new Random(rndSeed);
+
+        String inputPath = pref + "/input";
+        boolean res = new File(inputPath).mkdirs();
+        if (!res)
+            throw new RuntimeException();
+
+        ArrayList<Tuple2<Integer, Integer>> fullGraph = new ArrayList<>();
+        for (int i = 0; i < numEdges; i++) {
+            fullGraph.add(Tuple2.of(rnd.nextInt(numVertices), rnd.nextInt(numVertices)));
+        }
+
+        for (int day = 1; day <= numDays; day++) {
+            Path dayPath = Paths.get(inputPath + "/" + Integer.toString(day));
+            PrintWriter writer = new PrintWriter(Files.newBufferedWriter(dayPath, StandardCharsets.UTF_8));
+            for (Tuple2<Integer, Integer> e: fullGraph) {
+                if (rnd.nextInt(clicksPerDayRatio) == 0) {
+                    writer.println(Integer.toString(e.f0) + '\t' + e.f1);
+                }
+            }
+            writer.close();
+        }
+
+        System.out.println("Done.");
+    }
+
+    static public void checkLabyOut(String path, int numDays, double[] expected) throws IOException {
+        System.out.print("Checking PageRank output... ");
+
+        for (int day = 2; day <= numDays; day++) {
+            String actString = ClickCountDiffsInputGen.readFile(path + "/out/diff_" + Integer.toString(day), StandardCharsets.UTF_8);
+            double act = Double.parseDouble(actString.trim());
+            double exp = expected[day - 2];
+            if (act != exp) {
+                throw new RuntimeException("PageRankDiffs output is incorrect on day " + day + ". actual: " + act + ", expected: " + exp);
+            }
+        }
+
+        System.out.println("Correct!");
     }
 }

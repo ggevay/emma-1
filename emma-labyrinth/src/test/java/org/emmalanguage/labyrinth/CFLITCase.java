@@ -16,9 +16,11 @@
 
 package org.emmalanguage.labyrinth;
 
+import org.emmalanguage.labyrinth.inputgen.PageRankInputGen;
 import org.emmalanguage.labyrinth.jobs.ClickCountDiffs;
 import org.emmalanguage.labyrinth.jobs.ClickCountDiffsScala;
 import org.emmalanguage.labyrinth.jobs.ControlFlowMicrobenchmark;
+import org.emmalanguage.labyrinth.jobs.PageRankDiffs;
 import org.emmalanguage.labyrinth.jobsold.NoCF;
 import org.emmalanguage.labyrinth.jobsold.SimpleCF;
 import org.emmalanguage.labyrinth.inputgen.ClickCountDiffsInputGen;
@@ -131,6 +133,42 @@ public class CFLITCase {
 
         int[] exp = new int[]{1010, 1032, 981, 977, 978, 981, 988, 987, 958, 997, 985, 994, 1001, 987, 1007, 971, 960, 976, 1025, 1022, 971, 993, 997, 996, 1038, 985, 974, 999, 1020};
         ClickCountDiffsInputGen.checkLabyOut(path, numDays, exp);
+    }
+
+    @Test()
+    public void testPageRankDiffs() throws Exception {
+        LabyNode.labyNodes.clear();
+
+        String path = "/tmp/PageRankITCase/";
+        FileUtils.deleteQuietly(new File(path));
+
+        int numVertices = 1000, numEdges = 10000, clicksPerDayRatio = 10;
+        int numDays = 10;
+
+        PageRankInputGen.generateWithSeed(path, numDays, clicksPerDayRatio,numVertices, numEdges, 1234);
+
+        boolean exceptionReceived = false;
+        try {
+            PageRankDiffs.main(new String[]{path, Integer.toString(numDays)});
+        } catch (JobCancellationException ex) {
+            exceptionReceived = true;
+        }
+        if (!exceptionReceived) {
+            throw new RuntimeException("testPageRankDiffs job failed");
+        }
+
+        double[] exp = new double[]{
+                1.15,
+                1.13,
+                1.11,
+                1.11,
+                1.13,
+                1.09,
+                1.1,
+                1.1,
+                1.12
+        };
+        PageRankInputGen.checkLabyOut(path, numDays, exp);
     }
 
     @Test(expected=JobCancellationException.class)

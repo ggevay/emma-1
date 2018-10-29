@@ -85,6 +85,7 @@ public class ClickCountDiffsInputGen {
 
     static public void checkNocflOut(String path, int numDays, int[] expected) throws IOException {
         for (int i = 2; i <= numDays; i++) {
+            // The nocfl program writes into "expected"
             String actString = readFile(path + "/out/expected/diff_" + Integer.toString(i), StandardCharsets.UTF_8);
             int act = Integer.parseInt(actString.trim());
             if (act != expected[i - 2]) {
@@ -93,9 +94,7 @@ public class ClickCountDiffsInputGen {
         }
     }
 
-    private static String readFile(String path, Charset encoding)
-            throws IOException
-    {
+    public static String readFile(String path, Charset encoding) throws IOException {
         byte[] encoded = Files.readAllBytes(Paths.get(path));
         return new String(encoded, encoding);
     }
