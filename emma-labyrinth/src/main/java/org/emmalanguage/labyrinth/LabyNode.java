@@ -287,7 +287,7 @@ public class LabyNode<IN, OUT> extends AbstractLabyNode<OUT> {
 //                    break;
 //                }
 //            }
-            // todo: we should decide this more accurately. The problem is that it is too late to decide here, because if addInput created more outs, then we need to split. Hm, but wait: we can decide in addInput! needSplit would be a member variable, which we would set in addInput, and all non-conditional outs would be in one out. (But we have to check that the logic if splitting can handle this setup correctly.)
+            // todo: we should decide this more accurately. The problem is that it is too late to decide here, because if addInput created more outs, then we need to split. Hm, but wait: we can decide in addInput! needSplit would be a member variable, which we would set in addInput, and all non-conditional outs would be in one out. (But we have to check that the logic of splitting can handle this setup correctly.)
             needSplit = true;
         }
         if (needSplit) {

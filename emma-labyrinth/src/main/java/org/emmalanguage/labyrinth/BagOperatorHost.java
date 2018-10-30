@@ -20,7 +20,6 @@ package org.emmalanguage.labyrinth;
 import eu.stratosphere.labyrinth.BagID;
 import eu.stratosphere.labyrinth.CFLCallback;
 import eu.stratosphere.labyrinth.CFLManager;
-import org.apache.flink.streaming.api.operators.StreamingRuntimeContext;
 import org.emmalanguage.labyrinth.operators.ReusingBagOperator;
 import org.emmalanguage.labyrinth.operators.BagOperator;
 import org.emmalanguage.labyrinth.operators.DontThrowAwayInputBufs;
@@ -56,13 +55,13 @@ public class BagOperatorHost<IN, OUT>
 
 	private static final Logger LOG = LoggerFactory.getLogger(BagOperatorHost.class);
 
-	private BagOperator<IN,OUT> op;
-	int bbId;
+	private final BagOperator<IN,OUT> op;
+	final int bbId;
 	private int inputParallelism = -1;
 	public String name;
-	private int terminalBBId = -2;
-	private CFLConfig cflConfig;
-	int opID = -1;
+	private final int terminalBBId;
+	private final CFLConfig cflConfig;
+	final int opID;
 	public TypeSerializer<IN> inSer;
 
 	// ---------------------- Initialized in setup (i.e., on TM):
@@ -75,21 +74,23 @@ public class BagOperatorHost<IN, OUT>
 
 	ArrayList<Input> inputs;
 
+	private ExecutorService es;
+
 	// ----------------------
 
 	List<Integer> latestCFL; // note that this is the same object instance as in CFLManager
-	private Queue<Integer> outCFLSizes; // if not empty, then we are working on the first one; if empty, then we are not working
+	private final Queue<Integer> outCFLSizes = new ArrayDeque<>(); // if not empty, then we are working on the first one; if empty, then we are not working
 
-	public ArrayList<Out> outs = new ArrayList<>(); // conditional and normal outputs
+	public final ArrayList<Out> outs = new ArrayList<>(); // conditional and normal outputs
 
 	private volatile boolean terminalBBReached;
 
-	private HashSet<BagID> notifyCloseInputs = new HashSet<>();
-	private HashSet<BagID> notifyCloseInputEmpties = new HashSet<>();
+	private final HashSet<BagID> notifyCloseInputs = new HashSet<>();
+	private final HashSet<BagID> notifyCloseInputEmpties = new HashSet<>();
 
 	private boolean consumed = false;
 
-	private HashSet<Tuple2<Integer, Integer>> inputUses = new HashSet<>(); // (inputID, cflSize)
+	private final HashSet<Tuple2<Integer, Integer>> inputUses = new HashSet<>(); // (inputID, cflSize)
 
 	private boolean shouldLogStart;
 
@@ -97,25 +98,10 @@ public class BagOperatorHost<IN, OUT>
 
 	private boolean workInProgress = false;
 
-	private ExecutorService es;
-
 	private final boolean reuseInputs;
 
 	public BagOperatorHost(BagOperator<IN,OUT> op, int bbId, int opID, TypeSerializer<IN> inSer) {
 		this.op = op;
-		this.bbId = bbId;
-		this.inputs = new ArrayList<>();
-		this.terminalBBId = CFLConfig.getInstance().terminalBBId;
-		this.cflConfig = CFLConfig.getInstance();
-		this.reuseInputs = this.cflConfig.reuseInputs;
-		assert this.terminalBBId >= 0;
-		this.opID = opID;
-		this.inSer = inSer;
-		// warning: this runs in the driver, so we shouldn't access CFLManager here
-	}
-
-	// Does not set op
-	protected BagOperatorHost(int bbId, int opID, TypeSerializer<IN> inSer) {
 		this.bbId = bbId;
 		this.inputs = new ArrayList<>();
 		this.terminalBBId = CFLConfig.getInstance().terminalBBId;
@@ -166,8 +152,6 @@ public class BagOperatorHost<IN, OUT>
 				inp.inputSubpartitions[i] = new InputSubpartition<>(inSer, !(op instanceof DontThrowAwayInputBufs));
 			}
 		}
-
-		outCFLSizes = new ArrayDeque<>();
 
 		terminalBBReached = false;
 
