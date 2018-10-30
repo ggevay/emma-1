@@ -56,13 +56,13 @@ public class BagOperatorHost<IN, OUT>
 
 	private static final Logger LOG = LoggerFactory.getLogger(BagOperatorHost.class);
 
-	protected BagOperator<IN,OUT> op;
-	public int bbId;
+	private BagOperator<IN,OUT> op;
+	int bbId;
 	private int inputParallelism = -1;
 	public String name;
 	private int terminalBBId = -2;
 	private CFLConfig cflConfig;
-	public int opID = -1;
+	int opID = -1;
 	public TypeSerializer<IN> inSer;
 
 	// ---------------------- Initialized in setup (i.e., on TM):
@@ -73,12 +73,12 @@ public class BagOperatorHost<IN, OUT>
 	private CFLManager cflMan;
 	private MyCFLCallback cb;
 
-	protected ArrayList<Input> inputs;
+	ArrayList<Input> inputs;
 
 	// ----------------------
 
-	protected List<Integer> latestCFL; // note that this is the same object instance as in CFLManager
-	protected Queue<Integer> outCFLSizes; // if not empty, then we are working on the first one; if empty, then we are not working
+	List<Integer> latestCFL; // note that this is the same object instance as in CFLManager
+	private Queue<Integer> outCFLSizes; // if not empty, then we are working on the first one; if empty, then we are not working
 
 	public ArrayList<Out> outs = new ArrayList<>(); // conditional and normal outputs
 
@@ -196,36 +196,11 @@ public class BagOperatorHost<IN, OUT>
 		cflMan.subscribe(cb);
 	}
 
-	private int getMul() {
-		int mul = -1;
-		if (op instanceof MutableBagCC.MutableBagOperator) {
-			switch (((MutableBagCC.MutableBagOperator) op).inpID) {
-				case -1: // toBag
-					mul = 1;
-					break;
-				case 0: // toMutable
-					mul = 10;
-					break;
-				case 1: // join
-					mul = 100;
-					break;
-				case 2: // update
-					mul = 1000;
-					break;
-				default:
-					assert false;
-			}
-		} else {
-			mul = 1;
-		}
-		return mul;
-	}
-
 	private void notifyLogStart() {
 		if (shouldLogStart) {
 			shouldLogStart = false;
 			if (CFLConfig.logStartEnd) {
-				LOG.info("=== " + System.currentTimeMillis() + " S " + outCFLSizes.peek() + " " + opID * getMul());
+				LOG.info("=== " + System.currentTimeMillis() + " S " + outCFLSizes.peek() + " " + opID/* * getMul()*/);
 			}
 		}
 	}
@@ -296,7 +271,7 @@ public class BagOperatorHost<IN, OUT>
 		}
 	}
 
-	protected void outCFLSizesRemove() {
+	private void outCFLSizesRemove() {
 		outCFLSizes.remove();
 	}
 
@@ -320,7 +295,7 @@ public class BagOperatorHost<IN, OUT>
 			}
 
 			if (CFLConfig.logStartEnd) {
-				LOG.info("=== " + System.currentTimeMillis() + " E " + outCFLSizes.peek() + " " + opID * getMul());
+				LOG.info("=== " + System.currentTimeMillis() + " E " + outCFLSizes.peek() + " " + opID/* * getMul()*/);
 			}
 
 			ArrayList<BagID> inputBagIDs = new ArrayList<>();
@@ -346,10 +321,10 @@ public class BagOperatorHost<IN, OUT>
 			if (numElements > 0 || consumed || inputBagIDs.size() == 0) {
 				// In the inputBagIDs.size() == 0 case we have to send, because in this case checkForClosingProduced expects from everywhere
 				// (because of the s.inputs.size() == 0) at its beginning)
-				if (!(BagOperatorHost.this instanceof MutableBagCC && ((MutableBagCC.MutableBagOperator)op).inpID == 2)) {
-					numElements = correctBroadcast(numElements);
-					cflMan.producedLocal(outBagID, inputBagIDsArr, numElements, para, subpartitionId, opID);
-				}
+				//if (!(BagOperatorHost.this instanceof MutableBagCC && ((MutableBagCC.MutableBagOperator)op).inpID == 2)) {
+				numElements = correctBroadcast(numElements);
+				cflMan.producedLocal(outBagID, inputBagIDsArr, numElements, para, subpartitionId, opID);
+				//}
 			}
 
 			numElements = 0;
@@ -401,7 +376,7 @@ public class BagOperatorHost<IN, OUT>
 		}
 	}
 
-	protected void chooseOuts() {
+	private void chooseOuts() {
 		for (Out out: outs) {
 			out.active = true;
 		}
@@ -429,7 +404,7 @@ public class BagOperatorHost<IN, OUT>
 		assert !outCFLSizes.isEmpty();
 		Integer outCFLSize = outCFLSizes.peek();
 
-		assert latestCFL.get(outCFLSize - 1).equals(bbId) || this instanceof MutableBagCC;
+		assert latestCFL.get(outCFLSize - 1).equals(bbId); // || this instanceof MutableBagCC;
 
 		workInProgress = true;
 
@@ -537,7 +512,7 @@ public class BagOperatorHost<IN, OUT>
 		// I think the "remove buffer if complicated CFG condition" will be needed here
 	}
 
-	protected boolean updateOutCFLSizes(List<Integer> cfl) {
+	private boolean updateOutCFLSizes(List<Integer> cfl) {
 		if (cfl.get(cfl.size() - 1).equals(bbId)) {
 			outCFLSizes.add(cfl.size());
 			return true;
@@ -728,7 +703,7 @@ public class BagOperatorHost<IN, OUT>
 
 		private final byte splitId;
 		private final int targetBbId;
-		public final boolean normal; // not conditional
+		final boolean normal; // not conditional
 		public final Partitioner<OUT> partitioner;
 
 		private ArrayList<OUT> buffer = null;

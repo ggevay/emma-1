@@ -25,7 +25,6 @@ import org.emmalanguage.labyrinth.jobsold.NoCF;
 import org.emmalanguage.labyrinth.jobsold.SimpleCF;
 import org.emmalanguage.labyrinth.inputgen.ClickCountDiffsInputGen;
 import org.emmalanguage.labyrinth.jobsold.ConnectedComponents;
-import org.emmalanguage.labyrinth.jobsold.ConnectedComponentsMB;
 import org.emmalanguage.labyrinth.jobsold.EmptyBags;
 import org.emmalanguage.labyrinth.jobsold.SimpleCFDataSize;
 import org.apache.commons.io.FileUtils;
@@ -72,11 +71,6 @@ public class CFLITCase {
     @Test(expected=JobCancellationException.class)
     public void testConnectedComponents() throws Exception {
         ConnectedComponents.main(new String[]{});
-    }
-
-    @Test(expected=JobCancellationException.class)
-    public void testConnectedComponentsMB() throws Exception {
-        ConnectedComponentsMB.main(new String[]{});
     }
 
     @Test()
