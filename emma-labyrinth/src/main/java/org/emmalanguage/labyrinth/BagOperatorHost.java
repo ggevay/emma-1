@@ -549,7 +549,7 @@ public class BagOperatorHost<IN, OUT>
 
 		public void notify(List<Integer> cfl) {
 			synchronized (es) {
-				//List<Integer> cfl = new ArrayList<>(cfl0);
+				//List<Integer> cfl = new ArrayList<>(cfl0); // This is not needed anymore, because CFLManager gives a different instance for every CFL
 				es.submit(new Runnable() {
 					@Override
 					public void run() {

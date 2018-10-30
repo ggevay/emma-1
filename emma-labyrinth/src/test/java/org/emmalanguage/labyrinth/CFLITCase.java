@@ -171,7 +171,7 @@ public class CFLITCase {
         PageRankInputGen.checkLabyOut(path, numDays, exp);
     }
 
-    @Test(expected=JobCancellationException.class)
+    @Test()
     public void testControlFlowMicrobenchmark() throws Exception {
         LabyNode.labyNodes.clear();
 
