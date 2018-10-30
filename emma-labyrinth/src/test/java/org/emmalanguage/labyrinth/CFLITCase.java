@@ -41,7 +41,7 @@ public class CFLITCase {
         NoCF.main(null);
     }
 
-    @Test(expected=JobCancellationException.class)
+    @Test()
     public void testNoCFNew() throws Exception {
         LabyNode.labyNodes.clear();
         org.emmalanguage.labyrinth.jobs.NoCF.main(null);

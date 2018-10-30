@@ -63,6 +63,7 @@ public class BagOperatorHost<IN, OUT>
 	private final CFLConfig cflConfig;
 	final int opID;
 	public TypeSerializer<IN> inSer;
+    final ArrayList<Input> inputs;
 
 	// ---------------------- Initialized in setup (i.e., on TM):
 
@@ -70,13 +71,12 @@ public class BagOperatorHost<IN, OUT>
 	private short para;
 
 	private CFLManager cflMan;
-	private MyCFLCallback cb;
-
-	ArrayList<Input> inputs;
 
 	private ExecutorService es;
 
 	// ----------------------
+
+	private MyCFLCallback cb; // initialized in open()
 
 	List<Integer> latestCFL; // note that this is the same object instance as in CFLManager
 	private final Queue<Integer> outCFLSizes = new ArrayDeque<>(); // if not empty, then we are working on the first one; if empty, then we are not working
@@ -99,6 +99,8 @@ public class BagOperatorHost<IN, OUT>
 	private boolean workInProgress = false;
 
 	private final boolean reuseInputs;
+
+	private final Queue<Runnable> workQueue = new ArrayDeque<>();
 
 	public BagOperatorHost(BagOperator<IN,OUT> op, int bbId, int opID, TypeSerializer<IN> inSer) {
 		this.op = op;
@@ -171,7 +173,7 @@ public class BagOperatorHost<IN, OUT>
 	}
 
 	@Override
-	public void open() throws Exception {
+	public synchronized void open() throws Exception {
 		super.open();
 
 		Thread.sleep(100); // this is a workaround for the buffer pool destroyed error
@@ -189,22 +191,79 @@ public class BagOperatorHost<IN, OUT>
 		}
 	}
 
+	private void submitWork(Runnable r) {
+		synchronized (workQueue) {
+			workQueue.add(r);
+			if (CFLConfig.vlog) LOG.info("end of submitWork in op {" + name + "}[" + subpartitionId +"]; workQueue.size: " + workQueue.size());
+		}
+	}
+
+	// This has to be synchronized, because otherwise if it is running on multiple threads then the
+    // polling order might end up different from the actual call order after the polls.
+	private synchronized void doWork() {
+		while (true) {
+			Runnable work;
+			synchronized (workQueue) {
+				work = workQueue.poll();
+				if (CFLConfig.vlog) LOG.info("after workQueue.poll(); workQueue.size: " + workQueue.size());
+			}
+			if (work != null) {
+				if (CFLConfig.vlog) LOG.info("doWork found work in op {" + name + "}[" + subpartitionId +"]");
+				work.run();
+			} else {
+				break;
+			}
+		}
+		checkFinish();
+	}
+
+	private void doWorkAsync() {
+		synchronized (es) {
+			es.submit(new Runnable() {
+				@Override
+				public void run() {
+					doWork();
+				}
+			});
+		}
+	}
+
+	private synchronized void checkFinish() {
+		if (terminalBBReached && outCFLSizes.isEmpty() && workQueue.isEmpty() && cb != null && !workInProgress) {
+			if (CFLConfig.vlog) LOG.info("Calling unsubscribe {" + name + "}[" + subpartitionId +"]");
+			// We have to unsubscribe before shutdown, because we get broadcast notifications
+			// even when we are finished, when others are still working.
+			cflMan.unsubscribe(cb);
+			es.shutdown();
+			cb = null; // to not unsubscribe twice (and btw. cb is null also before open())
+		}
+	}
+
+	private void submitCheckFinish() {
+		submitWork(new Runnable() {
+			@Override
+			public void run() {
+				checkFinish();
+			}
+		});
+	}
+
 	@Override
-	synchronized public void processElement(StreamRecord<ElementOrEvent<IN>> streamRecord) throws Exception {
+	synchronized public void processElement(final StreamRecord<ElementOrEvent<IN>> streamRecord) throws Exception {
 
 		if (CFLConfig.vlog) LOG.info("Operator {" + name + "}[" + subpartitionId +"] processElement " + streamRecord.getValue());
 
-		ElementOrEvent<IN> eleOrEvent = streamRecord.getValue();
+		final ElementOrEvent<IN> eleOrEvent = streamRecord.getValue();
 		if (inputs.size() == 1) {
 			assert eleOrEvent.logicalInputId == -1 || eleOrEvent.logicalInputId == 0;
 			eleOrEvent.logicalInputId = 0; // This is to avoid having to have an extra map to set this for even one-input operators
 		}
 		assert eleOrEvent.logicalInputId != -1; // (there is an extra map needed, which fills this (if not one-input))
-		Input input = inputs.get(eleOrEvent.logicalInputId);
-		InputSubpartition<IN> sp = input.inputSubpartitions[eleOrEvent.subPartitionId];
+		final Input input = inputs.get(eleOrEvent.logicalInputId);
+		final InputSubpartition<IN> sp = input.inputSubpartitions[eleOrEvent.subPartitionId];
 
 		if (eleOrEvent.element != null) {
-			IN ele = eleOrEvent.element;
+			final IN ele = eleOrEvent.element;
 			sp.buffers.get(sp.buffers.size()-1).elements.add(ele);
 			if(!sp.damming) {
 				consumed = true;
@@ -253,10 +312,8 @@ public class BagOperatorHost<IN, OUT>
 			}
 
 		}
-	}
 
-	private void outCFLSizesRemove() {
-		outCFLSizes.remove();
+		doWork();
 	}
 
 	private class MyCollector implements BagOperatorOutputCollector<OUT> {
@@ -274,59 +331,61 @@ public class BagOperatorHost<IN, OUT>
 
 		@Override
 		public void closeBag() {
-			for(Out o: outs) {
-				o.closeBag();
-			}
+			submitWork(new Runnable() {
+				@Override
+				public void run() {
+					for(Out o: outs) {
+						o.closeBag();
+					}
 
-			if (CFLConfig.logStartEnd) {
-				LOG.info("=== " + System.currentTimeMillis() + " E " + outCFLSizes.peek() + " " + opID/* * getMul()*/);
-			}
+					if (CFLConfig.logStartEnd) {
+						LOG.info("=== " + System.currentTimeMillis() + " E " + outCFLSizes.peek() + " " + opID/* * getMul()*/);
+					}
 
-			ArrayList<BagID> inputBagIDs = new ArrayList<>();
-			for (Input inp: inputs) {
-				// This assert can fail when we have a kind of a short-circuit-style operator, which sometimes closes
-				// the output bag before the input bag started on all inputs, but elements will come from there later.
-				//assert inp.currentBagID != null; // Doesn't work for PhiNode
-				if (inp.activeFor.contains(outCFLSizes.peek())) {
-					assert inp.currentBagID != null;
-					inputBagIDs.add(inp.currentBagID);
+					ArrayList<BagID> inputBagIDs = new ArrayList<>();
+					for (Input inp: inputs) {
+						// This assert can fail when we have a kind of a short-circuit-style operator, which sometimes closes
+						// the output bag before the input bag started on all inputs, but elements will come from there later.
+						//assert inp.currentBagID != null; // Doesn't work for PhiNode
+						if (inp.activeFor.contains(outCFLSizes.peek())) {
+							assert inp.currentBagID != null;
+							inputBagIDs.add(inp.currentBagID);
+						}
+
+						// This can also fail for such short-circuit-style operators which don't wait for input bag closures before closing out.
+						assert inp.inputCFLSize == -1;
+					}
+					BagID[] inputBagIDsArr = new BagID[inputBagIDs.size()];
+					int i = 0;
+					for (BagID b: inputBagIDs) {
+						inputBagIDsArr[i++] = b;
+					}
+
+					BagID outBagID = new BagID(outCFLSizes.peek(), opID);
+					if (numElements > 0 || consumed || inputBagIDs.size() == 0) {
+						// In the inputBagIDs.size() == 0 case we have to send, because in this case checkForClosingProduced expects from everywhere
+						// (because of the s.inputs.size() == 0) at its beginning)
+						//if (!(BagOperatorHost.this instanceof MutableBagCC && ((MutableBagCC.MutableBagOperator)op).inpID == 2)) {
+						numElements = correctBroadcast(numElements);
+						cflMan.producedLocal(outBagID, inputBagIDsArr, numElements, para, subpartitionId, opID);
+						//}
+					}
+
+					numElements = 0;
+
+					outCFLSizes.remove();
+					workInProgress = false;
+					if(outCFLSizes.size() > 0) { // if there is pending work
+						if (CFLConfig.vlog) LOG.info("Out.closeBag starting a new out bag {" + name + "}");
+						// Note: outs' buffers will be discarded from this, but this is not a problem, because everything that has to be sent
+						// has been already sent
+						startOutBagCheckBarrier();
+					} else {
+						if (CFLConfig.vlog) LOG.info("Out.closeBag not starting a new out bag {" + name + "}");
+						submitCheckFinish();
+					}
 				}
-
-				// This can also fail for such short-circuit-style operators which don't wait for input bag closures before closing out.
-				assert inp.inputCFLSize == -1;
-			}
-			BagID[] inputBagIDsArr = new BagID[inputBagIDs.size()];
-			int i = 0;
-			for (BagID b: inputBagIDs) {
-				inputBagIDsArr[i++] = b;
-			}
-
-			BagID outBagID = new BagID(outCFLSizes.peek(), opID);
-			if (numElements > 0 || consumed || inputBagIDs.size() == 0) {
-				// In the inputBagIDs.size() == 0 case we have to send, because in this case checkForClosingProduced expects from everywhere
-				// (because of the s.inputs.size() == 0) at its beginning)
-				//if (!(BagOperatorHost.this instanceof MutableBagCC && ((MutableBagCC.MutableBagOperator)op).inpID == 2)) {
-				numElements = correctBroadcast(numElements);
-				cflMan.producedLocal(outBagID, inputBagIDsArr, numElements, para, subpartitionId, opID);
-				//}
-			}
-
-			numElements = 0;
-
-			outCFLSizesRemove();
-			workInProgress = false;
-			if(outCFLSizes.size() > 0) { // if there is pending work
-				if (CFLConfig.vlog) LOG.info("Out.closeBag starting a new out bag {" + name + "}");
-				// Note: outs' buffers will be discarded from this, but this is not a problem, because everything that has to be sent
-				// has been already sent
-				startOutBagCheckBarrier();
-			} else {
-				if (CFLConfig.vlog) LOG.info("Out.closeBag not starting a new out bag {" + name + "}");
-				if (terminalBBReached) { // if there is no pending work, and none would come later
-					cflMan.unsubscribe(cb);
-					es.shutdown();
-				}
-			}
+			});
 		}
 
 		@Override
@@ -369,7 +428,7 @@ public class BagOperatorHost<IN, OUT>
 	synchronized private void startOutBagCheckBarrier() {
 		if(!CFLManager.barrier) {
 			if (CFLConfig.vlog)
-				LOG.info("[" + name + "] CFLCallback.notify starting an out bag");
+				LOG.info("{" + name + "}[" + subpartitionId + "] CFLCallback.notify starting an out bag");
 			startOutBag();
 		} else {
 			assert !outCFLSizes.isEmpty();
@@ -496,147 +555,136 @@ public class BagOperatorHost<IN, OUT>
 		// I think the "remove buffer if complicated CFG condition" will be needed here
 	}
 
-	private boolean updateOutCFLSizes(List<Integer> cfl) {
-		if (cfl.get(cfl.size() - 1).equals(bbId)) {
-			outCFLSizes.add(cfl.size());
-			return true;
-		}
-		return false;
-	}
+//	private boolean updateOutCFLSizes(List<Integer> cfl) {
+//		if (cfl.get(cfl.size() - 1).equals(bbId)) {
+//			outCFLSizes.add(cfl.size());
+//			return true;
+//		}
+//		return false;
+//	}
 
 	private class MyCFLCallback implements CFLCallback {
 
 		public void notify(List<Integer> cfl) {
-			synchronized (es) {
-				//List<Integer> cfl = new ArrayList<>(cfl0); // This is not needed anymore, because CFLManager gives a different instance for every CFL
-				es.submit(new Runnable() {
-					@Override
-					public void run() {
-						try {
+			try {
+				latestCFL = cfl;
+
+				if (CFLConfig.vlog) LOG.info("CFL notification: " + latestCFL + " in op {" + name + "}[" + subpartitionId + "]");
+
+				// Note: the handling of outs has to be before the startOutBag call, because that will throw away buffers
+				// (and it often happens that reaching a BB triggers both of these things).
+
+				for (Out o : outs) {
+					o.notifyAppendToCFL(cfl);
+				}
+
+				if (cfl.get(cfl.size() - 1).equals(bbId)) {
+					submitWork(new Runnable() {
+						@Override
+						public void run() {
 							synchronized (BagOperatorHost.this) {
-								latestCFL = cfl;
-
-								if (CFLConfig.vlog) LOG.info("CFL notification: " + latestCFL + " {" + name + "}");
-
-								// Note: the handling of outs has to be before the startOutBag call, because that will throw away buffers
-								// (and it often happens that reaching a BB triggers both of these things).
-
-								for (Out o : outs) {
-									o.notifyAppendToCFL(cfl);
-								}
-
-								//boolean workInProgress = outCFLSizes.size() > 0;
-								boolean hasAdded = updateOutCFLSizes(cfl);
-								if (!workInProgress && hasAdded) {
+								outCFLSizes.add(cfl.size());
+								if (!workInProgress) {
 									startOutBagCheckBarrier();
 								} else {
 									if (CFLConfig.vlog)
-										LOG.info("[" + name + "] CFLCallback.notify not starting an out bag, because workInProgress=" + workInProgress + ", hasAdded=" + hasAdded + ", outCFLSizes.size()=" + outCFLSizes.size());
+										LOG.info("[" + name + "] CFLCallback.notify not starting an out bag, because workInProgress=" + workInProgress + ", outCFLSizes.size()=" + outCFLSizes.size());
 								}
 							}
-						} catch (Throwable t) {
-							LOG.error("Unhandled exception in MyCFLCallback.notify: " + ExceptionUtils.stringifyException(t));
-							System.err.println(ExceptionUtils.stringifyException(t));
-							System.exit(8);
 						}
-					}
-				});
+					});
+					doWorkAsync();
+				}
+			} catch (Throwable t) {
+				LOG.error("Unhandled exception in MyCFLCallback.notify: " + ExceptionUtils.stringifyException(t));
+				System.err.println(ExceptionUtils.stringifyException(t));
+				System.exit(8);
 			}
 		}
 
 		@Override
 		public void notifyTerminalBB() {
-			// If this doesn't go through es, then we have the problem that notify submits on subscribe,
-			// and this notify would have to insert something into outCFLSizes, but it hasn't inserted it yet
-			// when we reach the outCFLSizes check here.
-			synchronized (es) {
-				es.submit(new Runnable() {
-					@Override
-					public void run() {
-						try {
-							LOG.info("CFL notifyTerminalBB {" + name + "}");
-							synchronized (BagOperatorHost.this) {
-								terminalBBReached = true;
-								if (outCFLSizes.isEmpty()) {
-									// We have to unsubscribe before shutdown, because we get broadcast notifications
-									// even when we are finished, when others are still working.
-									cflMan.unsubscribe(cb);
-									es.shutdown();
-								}
-							}
-						} catch (Throwable t) {
-							LOG.error("Unhandled exception in MyCFLCallback.notifyTerminalBB: " + ExceptionUtils.stringifyException(t));
-							System.err.println(ExceptionUtils.stringifyException(t));
-							System.exit(8);
-						}
+			if (CFLConfig.vlog) LOG.info("CFL notifyTerminalBB before submit {" + name + "}[" + subpartitionId +"]");
+			submitWork(new Runnable() {
+				@Override
+				public void run() {
+					try {
+                        if (CFLConfig.vlog) LOG.info("CFL notifyTerminalBB {" + name + "}[" + subpartitionId +"]");
+                        terminalBBReached = true;
+                        submitCheckFinish();
+					} catch (Throwable t) {
+						LOG.error("Unhandled exception in MyCFLCallback.notifyTerminalBB: " + ExceptionUtils.stringifyException(t));
+						System.err.println(ExceptionUtils.stringifyException(t));
+						System.exit(8);
 					}
-				});
-			}
+				}
+			});
+			doWorkAsync();
 		}
 
 		@Override
 		public void notifyCloseInput(BagID bagID, int opID) {
 			if (opID == BagOperatorHost.this.opID || opID == CFLManager.CloseInputBag.emptyBag) {
-				synchronized (es) {
-					es.submit(new Runnable() {
-						@Override
-						public void run() {
-							try {
-								synchronized (BagOperatorHost.this) {
-									assert !notifyCloseInputs.contains(bagID);
-									notifyCloseInputs.add(bagID);
+				submitWork(new Runnable() {
+					@Override
+					public void run() {
+						try {
+							synchronized (BagOperatorHost.this) {
+								if (CFLConfig.vlog) LOG.info("notifyCloseInput bagID: " + bagID + ", opID: " + opID);
 
-									if (opID == CFLManager.CloseInputBag.emptyBag) {
-										notifyCloseInputEmpties.add(bagID);
-									}
+								assert !notifyCloseInputs.contains(bagID);
+								notifyCloseInputs.add(bagID);
 
-									for (Input inp : inputs) {
-										//assert inp.currentBagID != null; // This no longer works, because we broadcast closeInput
-										if (bagID.equals(inp.currentBagID)) {
+								if (opID == CFLManager.CloseInputBag.emptyBag) {
+									notifyCloseInputEmpties.add(bagID);
+								}
 
-											if (opID == CFLManager.CloseInputBag.emptyBag) {
-												// The EmptyFromEmpty marker interface is not needed here, because consumed = true doesn't mess up things
-												// even when the result bag will not be empty.
-												consumed = true;
-											}
+								for (Input inp : inputs) {
+									//assert inp.currentBagID != null; // This no longer works, because we broadcast closeInput
+									if (bagID.equals(inp.currentBagID)) {
 
-											inp.closeCurrentInBag();
+										if (opID == CFLManager.CloseInputBag.emptyBag) {
+											// The EmptyFromEmpty marker interface is not needed here, because consumed = true doesn't mess up things
+											// even when the result bag will not be empty.
+											consumed = true;
 										}
+
+										inp.closeCurrentInBag();
 									}
 								}
-							} catch (Throwable t) {
-								LOG.error("Unhandled exception in MyCFLCallback.notifyCloseInput: " + ExceptionUtils.stringifyException(t));
-								System.err.println(ExceptionUtils.stringifyException(t));
-								System.exit(8);
 							}
+						} catch (Throwable t) {
+							LOG.error("Unhandled exception in MyCFLCallback.notifyCloseInput: " + ExceptionUtils.stringifyException(t));
+							System.err.println(ExceptionUtils.stringifyException(t));
+							System.exit(8);
 						}
-					});
-				}
+					}
+				});
+				doWorkAsync();
 			}
 		}
 
 		@Override
 		public void notifyBarrierAllReached(int cflSize) {
-			synchronized (es) {
-				es.submit(new Runnable() {
-					@Override
-					public void run() {
-						synchronized (BagOperatorHost.this) {
-							assert CFLManager.barrier;
-							barrierAllReachedCFLSize = cflSize;
-							if (CFLConfig.vlog)
-								LOG.info("notifyBarrierAllReached {" + name + "} cflSize = " + cflSize + ", workInProgress = " + workInProgress);
-							if (!workInProgress) {
-								if (!outCFLSizes.isEmpty()) {
-									if (CFLConfig.vlog)
-										LOG.info("notifyBarrierAllReached {" + name + "} calling startOutBagCheckBarrier");
-									startOutBagCheckBarrier();
-								}
+			submitWork(new Runnable() {
+				@Override
+				public void run() {
+					synchronized (BagOperatorHost.this) {
+						assert CFLManager.barrier;
+						barrierAllReachedCFLSize = cflSize;
+						if (CFLConfig.vlog)
+							LOG.info("notifyBarrierAllReached {" + name + "} cflSize = " + cflSize + ", workInProgress = " + workInProgress);
+						if (!workInProgress) {
+							if (!outCFLSizes.isEmpty()) {
+								if (CFLConfig.vlog)
+									LOG.info("notifyBarrierAllReached {" + name + "} calling startOutBagCheckBarrier");
+								startOutBagCheckBarrier();
 							}
 						}
 					}
-				});
-			}
+				}
+			});
+			doWorkAsync();
 		}
 
 		@Override
@@ -777,43 +825,49 @@ public class BagOperatorHost<IN, OUT>
 
 		void notifyAppendToCFL(List<Integer> cfl) {
 			// isActive would not be good here, because it happens that a formerly active should be sent only now because of a notify.
-			if (!normal && (state == OutState.DAMMING || state == OutState.WAITING)) {
-				if (cfl.get(cfl.size() - 1).equals(targetBbId)) {
-					// We check that it is not overwritten before reaching the currently added one
-					boolean overwritten = false;
-					for (int i = outCFLSize; i < cfl.size() - 1; i++) {
-						int cfli = cfl.get(i);
-						if (cfli == bbId || overwriters.contains(cfli)) {
-							overwritten = true;
-						}
-					}
-					if (!overwritten) {
-						switch (state) {
-							case IDLE:
-								assert false; // Because the above if makes sure that this doesn't happen
-								break;
-							case DAMMING:
-								assert outCFLSizes.size() > 0;
-								assert outCFLSizes.peek().equals(outCFLSize);
-								startBag();
-								state = OutState.FORWARDING;
-								break;
-							case WAITING:
-								startBag();
-								if (buffer != null) {
-									for (OUT e : buffer) {
-										sendElement(e);
-									}
+			if (!normal && cfl.get(cfl.size() - 1).equals(targetBbId)) {
+				if (CFLConfig.vlog) LOG.info("CFL Out.notifyAppendToCFL before submit {" + name + "}[" + subpartitionId +"]");
+				submitWork(new Runnable() {
+					@Override
+					public void run() {
+						if (state == OutState.DAMMING || state == OutState.WAITING) {
+							// We check that it is not overwritten before reaching the currently added one
+							boolean overwritten = false;
+							for (int i = outCFLSize; i < cfl.size() - 1; i++) {
+								int cfli = cfl.get(i);
+								if (cfli == bbId || overwriters.contains(cfli)) {
+									overwritten = true;
 								}
-								endBag();
-								state = OutState.IDLE;
-								break;
-							case FORWARDING:
-								assert false; // Because the above if makes sure that this doesn't happen
-								break;
+							}
+							if (!overwritten) {
+								switch (state) {
+									case IDLE:
+										assert false; // Because the above if makes sure that this doesn't happen
+										break;
+									case DAMMING:
+										assert outCFLSizes.size() > 0;
+										assert outCFLSizes.peek().equals(outCFLSize);
+										startBag();
+										state = OutState.FORWARDING;
+										break;
+									case WAITING:
+										startBag();
+										if (buffer != null) {
+											for (OUT e : buffer) {
+												sendElement(e);
+											}
+										}
+										endBag();
+										state = OutState.IDLE;
+										break;
+									case FORWARDING:
+										assert false; // Because the above if makes sure that this doesn't happen
+										break;
+								}
+							}
 						}
 					}
-				}
+				});
 			}
 		}
 
