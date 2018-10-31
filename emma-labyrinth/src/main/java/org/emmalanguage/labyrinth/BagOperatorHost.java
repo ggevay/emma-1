@@ -930,14 +930,14 @@ public class BagOperatorHost<IN, OUT>
 	// Logical input
 	final class Input implements Serializable {
 
-		int id; // index in the inputs array
-		int bbId;
-		boolean inputInSameBlock; // before in the code (so if it is after in the same block, then this is false)
+		final int id; // index in the inputs array
+		final int bbId;
+		final boolean inputInSameBlock; // before in the code (so if it is after in the same block, then this is false)
 		InputSubpartition<IN>[] inputSubpartitions;
 		int inputCFLSize = -1; // always -1 when not working on an output bag or when we are not taking part in the computation of the current out bag (PhiNode)
-		BagID currentBagID = null; // which we are workign from
-		int opID = -1;
-		Set<Integer> activeFor = new HashSet<>(); // outCFLSizes for which this Input is active
+		BagID currentBagID = null; // which we are working from
+		final int opID;
+		final Set<Integer> activeFor = new HashSet<>(); // outCFLSizes for which this Input is active
 
 		Input(int id, int bbId, boolean inputInSameBlock, int opID) {
 			this.id = id;
@@ -957,23 +957,23 @@ public class BagOperatorHost<IN, OUT>
 
 		enum Status {OPEN, CLOSED}
 
-		class Buffer {
+		private final static class Buffer<T> {
 			SerializedBuffer<T> elements;
 			final BagID bagID;
 
-			Buffer(BagID bagID) {
+			Buffer(BagID bagID, TypeSerializer<T> ser) {
 				this.elements = new SerializedBuffer<T>(ser);
 				this.bagID = bagID;
 			}
 		}
 
-		final ArrayList<Buffer> buffers;
+		final ArrayList<Buffer<T>> buffers;
 
 		Status status;
 
 		boolean damming;
 
-		final TypeSerializer<T> ser;
+		private final TypeSerializer<T> ser;
 
 		private final boolean throwAwayOldBufs;
 		private int thrown = 0; // has already thrown away all input bufs before this
@@ -1010,7 +1010,7 @@ public class BagOperatorHost<IN, OUT>
 				}
 			}
 
-			buffers.add(new Buffer(bagID));
+			buffers.add(new Buffer<T>(bagID, ser));
 		}
 	}
 }

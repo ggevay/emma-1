@@ -27,7 +27,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 
-public class SerializedBuffer<T> implements Iterable<T> {
+public final class SerializedBuffer<T> implements Iterable<T> {
 
     private static final int segSize = 32768;
 
