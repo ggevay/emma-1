@@ -55,7 +55,7 @@ public class BagOperatorHost<IN, OUT>
 
 	private static final Logger LOG = LoggerFactory.getLogger(BagOperatorHost.class);
 
-	private final BagOperator<IN,OUT> op;
+	protected final BagOperator<IN,OUT> op;
 	final int bbId;
 	private int inputParallelism = -1;
 	public String name;
@@ -79,7 +79,7 @@ public class BagOperatorHost<IN, OUT>
 	private MyCFLCallback cb; // initialized in open()
 
 	List<Integer> latestCFL; // note that this is the same object instance as in CFLManager
-	private final Queue<Integer> outCFLSizes = new ArrayDeque<>(); // if not empty, then we are working on the first one; if empty, then we are not working
+	protected final Queue<Integer> outCFLSizes = new ArrayDeque<>(); // if not empty, then we are working on the first one; if empty, then we are not working
 
 	public final ArrayList<Out> outs = new ArrayList<>(); // conditional and normal outputs
 
@@ -316,6 +316,10 @@ public class BagOperatorHost<IN, OUT>
 		doWork();
 	}
 
+	protected void outCFLSizesRemove() {
+		outCFLSizes.remove();
+	}
+
 	private class MyCollector implements BagOperatorOutputCollector<OUT> {
 
 		private int numElements = 0;
@@ -365,15 +369,15 @@ public class BagOperatorHost<IN, OUT>
 					if (numElements > 0 || consumed || inputBagIDs.size() == 0) {
 						// In the inputBagIDs.size() == 0 case we have to send, because in this case checkForClosingProduced expects from everywhere
 						// (because of the s.inputs.size() == 0) at its beginning)
-						//if (!(BagOperatorHost.this instanceof MutableBagCC && ((MutableBagCC.MutableBagOperator)op).inpID == 2)) {
-						numElements = correctBroadcast(numElements);
-						cflMan.producedLocal(outBagID, inputBagIDsArr, numElements, para, subpartitionId, opID);
-						//}
+						if (!(BagOperatorHost.this instanceof MutableBagCC && ((MutableBagCC.MutableBagOperator)op).inpID == 2)) {
+							numElements = correctBroadcast(numElements);
+							cflMan.producedLocal(outBagID, inputBagIDsArr, numElements, para, subpartitionId, opID);
+						}
 					}
 
 					numElements = 0;
 
-					outCFLSizes.remove();
+					outCFLSizesRemove();
 					workInProgress = false;
 					if(outCFLSizes.size() > 0) { // if there is pending work
 						if (CFLConfig.vlog) LOG.info("Out.closeBag starting a new out bag {" + name + "}");
@@ -419,7 +423,7 @@ public class BagOperatorHost<IN, OUT>
 		}
 	}
 
-	private void chooseOuts() {
+	protected void chooseOuts() {
 		for (Out out: outs) {
 			out.active = true;
 		}
@@ -447,7 +451,7 @@ public class BagOperatorHost<IN, OUT>
 		assert !outCFLSizes.isEmpty();
 		Integer outCFLSize = outCFLSizes.peek();
 
-		assert latestCFL.get(outCFLSize - 1).equals(bbId); // || this instanceof MutableBagCC;
+		assert latestCFL.get(outCFLSize - 1).equals(bbId) || this instanceof MutableBagCC;
 
 		workInProgress = true;
 
@@ -578,12 +582,16 @@ public class BagOperatorHost<IN, OUT>
 					o.notifyAppendToCFL(cfl);
 				}
 
-				if (cfl.get(cfl.size() - 1).equals(bbId)) {
+				if (cfl.get(cfl.size() - 1).equals(bbId) || BagOperatorHost.this instanceof MutableBagCC) {
 					submitWork(new Runnable() {
 						@Override
 						public void run() {
 							synchronized (BagOperatorHost.this) {
-								outCFLSizes.add(cfl.size());
+								if (BagOperatorHost.this instanceof MutableBagCC) {
+									((MutableBagCC)BagOperatorHost.this).updateOutCFLSizesMB(cfl);
+								} else {
+									outCFLSizes.add(cfl.size());
+								}
 								if (!workInProgress) {
 									startOutBagCheckBarrier();
 								} else {

@@ -58,9 +58,11 @@ import org.apache.flink.streaming.api.functions.sink.DiscardingSink;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+// Each edge has to be present twice: (u,v) and (v,u))
+//  However, I actually add these duplicates inside the Util.getGraphTuple2IntInt call
 
 // // BB 0
-// edges = // read graph (each edge has to be present twice: (u,v) and (v,u))
+// edges = // read graph
 // vertices0 = edges.map((x,y) => x)
 // vertices = vertices0.distinct
 // labels = toMutable(vertices.map(x => (x,x)), (x,y) => x)
@@ -80,7 +82,7 @@ import org.slf4j.LoggerFactory;
 
 // SSA
 // // BB 0
-// edges = // read graph (each edge has to be present twice: (u,v) and (v,u))
+// edges = // read graph
 // verticesMult = edges.map((x,y) => x)
 // vertices = verticesMult.distinct
 // labels_0 = vertices.map(x => (x,x))

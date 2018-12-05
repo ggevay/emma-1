@@ -49,12 +49,11 @@ public class MutableBagCC extends BagOperatorHost<TupleIntInt, TupleIntInt> {
 	private Queue<Integer> whichInput = new ArrayDeque<>();
 
 	public MutableBagCC(int opID) {
-		super(1, opID, tupleIntIntSer);
-		op = new MutableBagOperator();
+		super(new MutableBagOperator(), 1, opID, tupleIntIntSer);
+		((MutableBagOperator)op).mb = this;
 	}
 
-	@Override
-	protected boolean updateOutCFLSizes(List<Integer> cfl) {
+	protected void updateOutCFLSizesMB(List<Integer> cfl) {
 		int addedBB = cfl.get(cfl.size() - 1);
 		outCFLSizes.add(cfl.size()); // because all BBs have at least one operation
 		if (addedBB == 1) { // because BB 1 has two operations
@@ -74,7 +73,6 @@ public class MutableBagCC extends BagOperatorHost<TupleIntInt, TupleIntInt> {
 			default:
 				assert false;
 		}
-		return true;
 	}
 
 	@Override
@@ -119,9 +117,11 @@ public class MutableBagCC extends BagOperatorHost<TupleIntInt, TupleIntInt> {
 		}
 	}
 
-	class MutableBagOperator extends BagOperator<TupleIntInt, TupleIntInt> {
+	static class MutableBagOperator extends BagOperator<TupleIntInt, TupleIntInt> {
 
 		private final Int2IntOpenHashMap hm = new Int2IntOpenHashMap(8192);
+
+		public MutableBagCC mb;
 
 		int inpID = -3;
 
@@ -133,8 +133,8 @@ public class MutableBagCC extends BagOperatorHost<TupleIntInt, TupleIntInt> {
 		public void openOutBag() {
 			super.openOutBag();
 
-			int inpID = whichInput.peek();
-			((MutableBagOperator)op).inpID = inpID;
+			int inpID = mb.whichInput.peek();
+			((MutableBagOperator)mb.op).inpID = inpID;
 
 			switch (inpID) {
 				case -1:
