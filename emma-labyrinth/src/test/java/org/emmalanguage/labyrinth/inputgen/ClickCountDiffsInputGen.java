@@ -16,15 +16,17 @@
 
 package org.emmalanguage.labyrinth.inputgen;
 
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.Writer;
+import java.io.*;
+import java.net.URI;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Random;
+
+import it.unimi.dsi.fastutil.longs.LongBigArrayBigList;
+import org.apache.flink.core.fs.FileSystem;
+import org.apache.flink.core.fs.Path;
 
 public class ClickCountDiffsInputGen {
 
@@ -32,27 +34,34 @@ public class ClickCountDiffsInputGen {
      * args: path, numProducts, clicksPerDayRatio
      */
     public static void main(String[] args) throws Exception {
-        final String pref = args[0] + "/";
-        generate(Integer.parseInt(args[1]), 365, pref, new Random(), Double.parseDouble(args[2]));
+        String pref = args[0] + "/";
+        long numProducts = Long.parseLong(args[1]);
+        double clicksPerDayRatio = Double.parseDouble(args[2]);
+        int numDays = Integer.parseInt(args[3]);
+        generate(numProducts, numDays, pref, new Random(), clicksPerDayRatio);
     }
 
-    public static String generate(int numProducts, int numDays, String pref, Random rnd, double clicksPerDayRatio) throws IOException {
+    public static String generate(long numProducts, int numDays, String pref, Random rnd, double clicksPerDayRatio) throws Exception {
 
-        pref = pref + Integer.toString(numProducts) + "/";
+        pref = pref + Long.toString(numProducts) + "/";
 
-        final int numClicksPerDay = (int)(numProducts * clicksPerDayRatio);
+        final long numClicksPerDay = (long)(numProducts * clicksPerDayRatio);
 
         final String pageAttributesFile = pref + "in/pageAttributes.tsv";
 
-        new File(pref + "in").mkdirs();
-        new File(pref + "out").mkdirs();
-        new File(pref + "tmp").mkdirs();
+        FileSystem fs = FileSystem.get(new URI(pref));
+        fs.mkdirs(new Path(pref + "in"));
+        fs.mkdirs(new Path(pref + "out"));
+        fs.mkdirs(new Path(pref + "tmp"));
 
-        Writer wr1 = new FileWriter(pageAttributesFile);
+        LongBigArrayBigList prodIDs = new LongBigArrayBigList(numProducts);
+        PrintWriter wr1 = new PrintWriter(fs.create(new Path(pageAttributesFile), FileSystem.WriteMode.OVERWRITE));
         int j = 0;
-        for (int i=0; i<numProducts; i++) {
+        for (long i=0; i<numProducts; i++) {
+            long prodID = rnd.nextLong();
             int type = rnd.nextInt(2);
-            wr1.write(Integer.toString(i) + "\t" + Integer.toString(type) + "\n");
+            prodIDs.add(prodID);
+            wr1.write(Long.toString(prodID) + "\t" + Integer.toString(type) + "\n");
             if (j++ == 1000000) {
                 System.out.println(i);
                 j = 0;
@@ -62,10 +71,11 @@ public class ClickCountDiffsInputGen {
 
         for (int day = 1; day <= numDays; day++) {
             System.out.println(day);
-            Writer wr2 = new FileWriter(pref + "in/clickLog_" + day);
+            String file = pref + "in/clickLog_" + day;
+            PrintWriter wr2 = new PrintWriter(fs.create(new Path(file), FileSystem.WriteMode.OVERWRITE));
             for (int i=0; i<numClicksPerDay; i++) {
-                int click = rnd.nextInt(numProducts);
-                wr2.write(Integer.toString(click) + "\n");
+                long click = prodIDs.getLong(nextLong(rnd, numProducts));
+                wr2.write(Long.toString(click) + "\n");
             }
             wr2.close();
         }
@@ -73,26 +83,40 @@ public class ClickCountDiffsInputGen {
         return pref;
     }
 
-    static public void checkLabyOut(String path, int numDays, int[] expected) throws IOException {
+    // https://stackoverflow.com/questions/2546078/java-random-long-number-in-0-x-n-range
+    private static long nextLong(Random rng, long n) {
+        // error checking and 2^x checking removed for simplicity.
+        long bits, val;
+        do {
+            bits = (rng.nextLong() << 1) >>> 1;
+            val = bits % n;
+        } while (bits-val+(n-1) < 0L);
+        return val;
+    }
+
+    // Compares out between the Laby version and the Nolaby (Flink) version.
+    static public void checkOut(String path, int numDays) throws IOException {
         for (int i = 2; i <= numDays; i++) {
-            String actString = readFile(path + "/out/diff_" + Integer.toString(i), StandardCharsets.UTF_8);
-            int act = Integer.parseInt(actString.trim());
-            if (act != expected[i - 2]) {
+
+            String labyString = readFile(path + "/out/diff_" + Long.toString(i), StandardCharsets.UTF_8);
+            long laby = Long.parseLong(labyString.trim());
+
+            String flinkString = readFile(path + "/out_flink/diff_" + Long.toString(i), StandardCharsets.UTF_8);
+            long flink = Long.parseLong(flinkString.trim());
+
+            String scalaString = readFile(path + "/out_scala/diff_" + Long.toString(i), StandardCharsets.UTF_8);
+            long scala = Long.parseLong(scalaString.trim());
+
+            if (laby != flink) {
                 throw new RuntimeException("ClickCountDiffs output is incorrect on day " + i);
+            }
+
+            if (flink != scala) {
+                throw new RuntimeException("ClickCountDiffs_scala output is incorrect on day " + i);
             }
         }
     }
 
-    static public void checkNocflOut(String path, int numDays, int[] expected) throws IOException {
-        for (int i = 2; i <= numDays; i++) {
-            // The nocfl program writes into "expected"
-            String actString = readFile(path + "/out/expected/diff_" + Integer.toString(i), StandardCharsets.UTF_8);
-            int act = Integer.parseInt(actString.trim());
-            if (act != expected[i - 2]) {
-                throw new RuntimeException("ClickCountDiffs output is incorrect on day " + i);
-            }
-        }
-    }
 
     public static String readFile(String path, Charset encoding) throws IOException {
         byte[] encoded = Files.readAllBytes(Paths.get(path));

@@ -36,22 +36,23 @@ import org.emmalanguage.labyrinth.*;
 import org.emmalanguage.labyrinth.operators.*;
 import org.emmalanguage.labyrinth.partitioners.*;
 import org.emmalanguage.labyrinth.util.TupleIntInt;
+import org.emmalanguage.labyrinth.util.TupleLongLong;
 import org.emmalanguage.labyrinth.util.Unit;
 
 import java.util.Collections;
 
 public class ClickCountDiffsNoJoin {
 
-    private static TupleTypeInfo<Tuple2<Integer, Integer>> typeInfoTupleIntInt = new TupleTypeInfo<>(TypeInformation.of(Integer.class), TypeInformation.of(Integer.class));
-    private static TupleTypeInfo<Tuple1<Integer>> typeInfoTuple1Integer0 = new TupleTypeInfo<>(TypeInformation.of(Integer.class));
-    private static TypeInformation<ElementOrEvent<Tuple1<Integer>>> typeInfoTuple1Integer = TypeInformation.of(new TypeHint<ElementOrEvent<Tuple1<Integer>>>(){});
-    private static TypeInformation<ElementOrEvent<Integer>> typeInfoInteger = TypeInformation.of(new TypeHint<ElementOrEvent<Integer>>(){});
+    private static TupleTypeInfo<Tuple2<Long, Long>> typeInfoTupleLongLong = new TupleTypeInfo<>(TypeInformation.of(Long.class), TypeInformation.of(Long.class));
+    private static TupleTypeInfo<Tuple1<Long>> typeInfoTuple1Long0 = new TupleTypeInfo<>(TypeInformation.of(Long.class));
+    private static TypeInformation<ElementOrEvent<Tuple1<Long>>> typeInfoTuple1Long = TypeInformation.of(new TypeHint<ElementOrEvent<Tuple1<Long>>>(){});
+    private static TypeInformation<ElementOrEvent<Long>> typeInfoLong = TypeInformation.of(new TypeHint<ElementOrEvent<Long>>(){});
 
-    private static TypeSerializer<Integer> integerSer = TypeInformation.of(Integer.class).createSerializer(new ExecutionConfig());
+    private static TypeSerializer<Long> longSer = TypeInformation.of(Long.class).createSerializer(new ExecutionConfig());
     private static TypeSerializer<Boolean> booleanSer = TypeInformation.of(Boolean.class).createSerializer(new ExecutionConfig());
-    private static TypeSerializer<TupleIntInt> tupleIntIntSer = new TupleIntInt.TupleIntIntSerializer();
+    private static TypeSerializer<TupleLongLong> tupleLongLongSer = new TupleLongLong.TupleLongLongSerializer();
     private static TypeSerializer<String> stringSer = TypeInformation.of(String.class).createSerializer(new ExecutionConfig());
-    private static TypeSerializer<Tuple1<Integer>> typeInfoTuple1IntegerSer = typeInfoTuple1Integer0.createSerializer(new ExecutionConfig());
+    private static TypeSerializer<Tuple1<Long>> typeInfoTuple1LongSer = typeInfoTuple1Long0.createSerializer(new ExecutionConfig());
 
     // /home/ggevay/Dropbox/cfl_testdata/ClickCount 4
     public static void main(String[] args) throws Exception {
@@ -76,21 +77,21 @@ public class ClickCountDiffsNoJoin {
         // BB 0
 
         @SuppressWarnings("unchecked")
-        LabySource<TupleIntInt> yesterdayCounts_1 =
-                new LabySource<>(env.fromCollection(Collections.emptyList(), TypeInformation.of(TupleIntInt.class)), 0, TypeInformation.of(new TypeHint<ElementOrEvent<TupleIntInt>>(){}));
+        LabySource<TupleLongLong> yesterdayCounts_1 =
+                new LabySource<>(env.fromCollection(Collections.emptyList(), TypeInformation.of(TupleLongLong.class)), 0, TypeInformation.of(new TypeHint<ElementOrEvent<TupleLongLong>>(){}));
 
-        LabySource<Integer> day_1 =
-                new LabySource<>(env.fromCollection(Collections.singletonList(1)), 0, TypeInformation.of(new TypeHint<ElementOrEvent<Integer>>(){}))
+        LabySource<Long> day_1 =
+                new LabySource<>(env.fromCollection(Collections.singletonList(1L)), 0, TypeInformation.of(new TypeHint<ElementOrEvent<Long>>(){}))
                         .setParallelism(1);
 
         // -- Iteration starts here --   BB 1
 
-        LabyNode<TupleIntInt, TupleIntInt> yesterdayCounts_2 =
-                LabyNode.phi("yesterdayCounts_2", 1, new Forward<>(para), tupleIntIntSer, TypeInformation.of(new TypeHint<ElementOrEvent<TupleIntInt>>(){}))
+        LabyNode<TupleLongLong, TupleLongLong> yesterdayCounts_2 =
+                LabyNode.phi("yesterdayCounts_2", 1, new Forward<>(para), tupleLongLongSer, TypeInformation.of(new TypeHint<ElementOrEvent<TupleLongLong>>(){}))
                 .addInput(yesterdayCounts_1, false);
 
-        LabyNode<Integer, Integer> day_2 =
-                LabyNode.phi("day_2", 1, new Always0<>(1), integerSer, TypeInformation.of(new TypeHint<ElementOrEvent<Integer>>(){}))
+        LabyNode<Long, Long> day_2 =
+                LabyNode.phi("day_2", 1, new Always0<>(1), longSer, TypeInformation.of(new TypeHint<ElementOrEvent<Long>>(){}))
                 .addInput(day_1, false)
                 .setParallelism(1);
 
@@ -101,71 +102,71 @@ public class ClickCountDiffsNoJoin {
 //                        .addInput(day_2, true, false);
 //                        //.setParallelism(1);
 
-        LabyNode<Integer, String> visits_filename =
-                new LabyNode<>("visits_filename", new FlatMap<Integer, String>() {
+        LabyNode<Long, String> visits_filename =
+                new LabyNode<>("visits_filename", new FlatMap<Long, String>() {
                     @Override
-                    public void pushInElement(Integer e, int logicalInputId) {
+                    public void pushInElement(Long e, int logicalInputId) {
                         super.pushInElement(e, logicalInputId);
                         out.collectElement(pref + "/in/clickLog_" + e);
                     }
-                }, 1, new Always0<>(1), integerSer, TypeInformation.of(new TypeHint<ElementOrEvent<String>>(){}))
+                }, 1, new Always0<>(1), longSer, TypeInformation.of(new TypeHint<ElementOrEvent<String>>(){}))
                         .addInput(day_2, true, false)
                         .setParallelism(1);
 
-        TypeInformation<ElementOrEvent<InputFormatWithInputSplit<Tuple1<Integer>, FileInputSplit>>> inputFormatWithInputSplitTypeInfo =
-                TypeInformation.of(new TypeHint<ElementOrEvent<InputFormatWithInputSplit<Tuple1<Integer>, FileInputSplit>>>(){});
+        TypeInformation<ElementOrEvent<InputFormatWithInputSplit<Tuple1<Long>, FileInputSplit>>> inputFormatWithInputSplitTypeInfo =
+                TypeInformation.of(new TypeHint<ElementOrEvent<InputFormatWithInputSplit<Tuple1<Long>, FileInputSplit>>>(){});
 
-        TypeSerializer<InputFormatWithInputSplit<Tuple1<Integer>, FileInputSplit>> inputFormatWithInputSplitSer =
-                TypeInformation.of(new TypeHint<InputFormatWithInputSplit<Tuple1<Integer>, FileInputSplit>>(){}).createSerializer(new ExecutionConfig());
+        TypeSerializer<InputFormatWithInputSplit<Tuple1<Long>, FileInputSplit>> inputFormatWithInputSplitSer =
+                TypeInformation.of(new TypeHint<InputFormatWithInputSplit<Tuple1<Long>, FileInputSplit>>(){}).createSerializer(new ExecutionConfig());
 
-        LabyNode<String, InputFormatWithInputSplit<Tuple1<Integer>, FileInputSplit>> visits_input_splits =
-                new LabyNode<>("visits_input_splits", new CFAwareFileSourcePara<Tuple1<Integer>, FileInputSplit>() {
+        LabyNode<String, InputFormatWithInputSplit<Tuple1<Long>, FileInputSplit>> visits_input_splits =
+                new LabyNode<>("visits_input_splits", new CFAwareFileSourcePara<Tuple1<Long>, FileInputSplit>() {
                     @Override
-                    protected InputFormat<Tuple1<Integer>, FileInputSplit> getInputFormatFromFilename(String filename) {
-                        return new TupleCsvInputFormat<>(new Path(filename), "\n", "\t", typeInfoTuple1Integer0);
+                    protected InputFormat<Tuple1<Long>, FileInputSplit> getInputFormatFromFilename(String filename) {
+                        return new TupleCsvInputFormat<>(new Path(filename), "\n", "\t", typeInfoTuple1Long0);
                     }
                 }, 1, new Always0<>(1), stringSer, inputFormatWithInputSplitTypeInfo)
                         .addInput(visits_filename, true, false)
                         .setParallelism(1);
 
-        LabyNode<InputFormatWithInputSplit<Tuple1<Integer>, FileInputSplit>, Tuple1<Integer>> visits_read =
-                new LabyNode<>("visits_read", new CFAwareFileSourceParaReader<>(typeInfoTuple1Integer0), 1, new Random<>(para), inputFormatWithInputSplitSer, typeInfoTuple1Integer) // Random partitioning is better here in the case when we don't have enough splits to give work to all machines. In this case, RoundRobin tends to fill up some machines and not give any work to others.
+        LabyNode<InputFormatWithInputSplit<Tuple1<Long>, FileInputSplit>, Tuple1<Long>> visits_read =
+                new LabyNode<>("visits_read", new CFAwareFileSourceParaReader<>(typeInfoTuple1Long0), 1, new Random<>(para), inputFormatWithInputSplitSer, typeInfoTuple1Long) // Random partitioning is better here in the case when we don't have enough splits to give work to all machines. In this case, RoundRobin tends to fill up some machines and not give any work to others.
                         .addInput(visits_input_splits, true, false);
 
-        LabyNode<Tuple1<Integer>, Integer> visits_1 =
-                new LabyNode<>("visits_1", new FlatMap<Tuple1<Integer>, Integer>() {
+        LabyNode<Tuple1<Long>, Long> visits_1 =
+                new LabyNode<>("visits_1", new FlatMap<Tuple1<Long>, Long>() {
                     @Override
-                    public void pushInElement(Tuple1<Integer> e, int logicalInputId) {
+                    public void pushInElement(Tuple1<Long> e, int logicalInputId) {
                         super.pushInElement(e, logicalInputId);
                         out.collectElement(e.f0);
                     }
-                }, 1, new RoundRobin<>(para), typeInfoTuple1IntegerSer, typeInfoInteger)
+                }, 1, new RoundRobin<>(para), typeInfoTuple1LongSer, typeInfoLong)
                         .addInput(visits_read, true, false);
 
         // --- End of file reading ---
 
-        LabyNode<Integer, TupleIntInt> visitsMapped =
-                new LabyNode<>("visitsMapped", new FlatMap<Integer, TupleIntInt>() {
+        LabyNode<Long, TupleLongLong> visitsMapped =
+                new LabyNode<>("visitsMapped", new FlatMap<Long, TupleLongLong>() {
                     @Override
-                    public void pushInElement(Integer e, int logicalInputId) {
+                    public void pushInElement(Long e, int logicalInputId) {
                         super.pushInElement(e, logicalInputId);
-                        out.collectElement(TupleIntInt.of(e, 1));
+                        out.collectElement(TupleLongLong.of(e, 1L));
                     }
-                }, 1, new IntegerBy0(para), integerSer, TypeInformation.of(new TypeHint<ElementOrEvent<TupleIntInt>>(){}))
+                }, 1, new LongBy0(para), longSer, TypeInformation.of(new TypeHint<ElementOrEvent<TupleLongLong>>(){}))
                 .addInput(visits_1, true, false);
 
-        LabyNode<TupleIntInt, TupleIntInt> counts =
-                new LabyNode<>("counts", new GroupBy0Sum1TupleIntInt(), 1, new TupleIntIntBy0(para), tupleIntIntSer, TypeInformation.of(new TypeHint<ElementOrEvent<TupleIntInt>>(){}))
+        LabyNode<TupleLongLong, TupleLongLong> counts =
+                new LabyNode<>("counts", new GroupBy0Sum1TupleLongLong(), 1, new TupleLongLongBy0(para), tupleLongLongSer, TypeInformation.of(new TypeHint<ElementOrEvent<TupleLongLong>>(){}))
                 .addInput(visitsMapped, true, false);
 
-        LabyNode<Integer, Boolean> notFirstDay =
-                new LabyNode<>("notFirstDay", new SingletonBagOperator<Integer, Boolean>() {
+        LabyNode<Long, Boolean> notFirstDay =
+                new LabyNode<>("notFirstDay", new SingletonBagOperator<Long, Boolean>() {
                     @Override
-                    public void pushInElement(Integer e, int logicalInputId) {
+                    public void pushInElement(Long e, int logicalInputId) {
                         super.pushInElement(e, logicalInputId);
-                        out.collectElement(!e.equals(1));
+                        out.collectElement(!e.equals(1L));
                     }
-                }, 1, new Always0<>(1), integerSer, TypeInformation.of(new TypeHint<ElementOrEvent<Boolean>>(){}))
+                }, 1, new Always0<>(1), longSer, TypeInformation.of(new TypeHint<ElementOrEvent<Boolean>>(){}))
                 .addInput(day_2, true, false)
                 .setParallelism(1);
 
@@ -177,37 +178,37 @@ public class ClickCountDiffsNoJoin {
         // -- then branch   BB 2
 
         // The join of joinedYesterday is merged into this operator
-        LabyNode<TupleIntInt, Integer> diffs =
-                new LabyNode<>("diffs", new OuterJoinTupleIntInt<Integer>() {
+        LabyNode<TupleLongLong, Long> diffs =
+                new LabyNode<>("diffs", new OuterJoinTupleLongLong<Long>() {
                     @Override
-                    protected void inner(int b, TupleIntInt p) {
+                    protected void inner(long b, TupleLongLong p) {
                         out.collectElement(Math.abs(b - p.f1));
                     }
 
                     @Override
-                    protected void right(TupleIntInt p) {
+                    protected void right(TupleLongLong p) {
                         out.collectElement(p.f1);
                     }
 
                     @Override
-                    protected void left(int b) {
+                    protected void left(long b) {
                         out.collectElement(b);
                     }
-                }, 2, new TupleIntIntBy0(para), tupleIntIntSer, TypeInformation.of(new TypeHint<ElementOrEvent<Integer>>(){}))
+                }, 2, new TupleLongLongBy0(para), tupleLongLongSer, TypeInformation.of(new TypeHint<ElementOrEvent<Long>>(){}))
                 .addInput(yesterdayCounts_2, false, true)
                 .addInput(counts, false, true);
 
-        LabyNode<Integer, Integer> sumCombiner =
-                new LabyNode<>("sumCombiner", new SumCombiner(), 2, new Forward<>(para), integerSer, TypeInformation.of(new TypeHint<ElementOrEvent<Integer>>(){}))
+        LabyNode<Long, Long> sumCombiner =
+                new LabyNode<>("sumCombiner", new SumCombinerLong(), 2, new Forward<>(para), longSer, TypeInformation.of(new TypeHint<ElementOrEvent<Long>>(){}))
                 .addInput(diffs, true, false);
 
-        LabyNode<Integer, Integer> sum =
-                new LabyNode<>("sum", new Sum(), 2, new Always0<>(1), integerSer, TypeInformation.of(new TypeHint<ElementOrEvent<Integer>>(){}))
+        LabyNode<Long, Long> sum =
+                new LabyNode<>("sum", new SumLong(), 2, new Always0<>(1), longSer, TypeInformation.of(new TypeHint<ElementOrEvent<Long>>(){}))
                 .addInput(sumCombiner, true, false)
                 .setParallelism(1);
 
-        LabyNode<Integer, Unit> printSum =
-                new LabyNode<>("printSum", new CFAwareFileSink(pref + "out_nojoin/diff_"), 2, new Always0<>(1), integerSer, TypeInformation.of(new TypeHint<ElementOrEvent<Unit>>(){}))
+        LabyNode<Long, Unit> printSum =
+                new LabyNode<>("printSum", new CFAwareFileSink(pref + "out_nojoin/diff_"), 2, new Always0<>(1), longSer, TypeInformation.of(new TypeHint<ElementOrEvent<Unit>>(){}))
                 .addInput(day_2, false, true)
                 .addInput(sum, true, false)
                 .setParallelism(1);
@@ -217,15 +218,15 @@ public class ClickCountDiffsNoJoin {
         // (We "optimize away" yesterdayCounts_3, since it would be an IdMap)
         yesterdayCounts_2.addInput(counts, false, true);
 
-        LabyNode<Integer, Integer> day_3 =
-                new LabyNode<>("day_3", new IncMap(), 3, new Always0<>(1), integerSer, TypeInformation.of(new TypeHint<ElementOrEvent<Integer>>(){}))
+        LabyNode<Long, Long> day_3 =
+                new LabyNode<>("day_3", new IncMapLong(), 3, new Always0<>(1), longSer, TypeInformation.of(new TypeHint<ElementOrEvent<Long>>(){}))
                 .addInput(day_2, false, false)
                 .setParallelism(1);
 
         day_2.addInput(day_3, false, true);
 
-        LabyNode<Integer, Boolean> notLastDay =
-                new LabyNode<>("notLastDay", new SmallerThan(Integer.parseInt(args[1]) + 1), 3, new Always0<>(1), integerSer, TypeInformation.of(new TypeHint<ElementOrEvent<Boolean>>(){}))
+        LabyNode<Long, Boolean> notLastDay =
+                new LabyNode<>("notLastDay", new SmallerThanLong(Long.parseLong(args[1]) + 1), 3, new Always0<>(1), longSer, TypeInformation.of(new TypeHint<ElementOrEvent<Boolean>>(){}))
                 .addInput(day_3, true, false)
                 .setParallelism(1);
 

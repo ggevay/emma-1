@@ -30,7 +30,7 @@ import it.unimi.dsi.fastutil.ints.Int2ObjectRBTreeMap;
  */
 public abstract class JoinTupleIntInt<OUT> extends BagOperator<TupleIntInt, OUT> implements ReusingBagOperator {
 
-    private static final Logger LOG = LoggerFactory.getLogger(JoinTupleIntInt.class);
+    //private static final Logger LOG = LoggerFactory.getLogger(JoinTupleIntInt.class);
 
     private Int2ObjectRBTreeMap<IntArrayList> ht;
     private SerializedBuffer<TupleIntInt> probeBuffered;

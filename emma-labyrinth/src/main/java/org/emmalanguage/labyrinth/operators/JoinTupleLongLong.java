@@ -16,25 +16,28 @@
 
 package org.emmalanguage.labyrinth.operators;
 
-import org.emmalanguage.labyrinth.util.TupleIntInt;
-import org.emmalanguage.labyrinth.util.SerializedBuffer;
-//import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectRBTreeMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
+import it.unimi.dsi.fastutil.longs.Long2ObjectRBTreeMap;
+import it.unimi.dsi.fastutil.longs.LongArrayList;
+import org.emmalanguage.labyrinth.util.SerializedBuffer;
+import org.emmalanguage.labyrinth.util.TupleIntInt;
+import org.emmalanguage.labyrinth.util.TupleLongLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+//import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 
 /**
  * Joins (key,b) (build) with (key,c) (probe), giving (b, key, c) to the udf.
  * The first input is the build side.
  */
-public abstract class OuterJoinTupleIntInt<T> extends BagOperator<TupleIntInt, T> implements ReusingBagOperator {
+public abstract class JoinTupleLongLong<OUT> extends BagOperator<TupleLongLong, OUT> implements ReusingBagOperator {
 
-    //private static final Logger LOG = LoggerFactory.getLogger(OuterJoinTupleIntInt.class);
+    //private static final Logger LOG = LoggerFactory.getLogger(JoinTupleLongLong.class);
 
-    //private Int2ObjectOpenHashMap<HashMapElem> ht;
-    private Int2ObjectRBTreeMap<HashMapElem> ht;
-    private SerializedBuffer<TupleIntInt> probeBuffered;
+    private Long2ObjectRBTreeMap<LongArrayList> ht;
+    private SerializedBuffer<TupleLongLong> probeBuffered;
     private boolean buildDone;
     private boolean probeDone;
 
@@ -43,7 +46,7 @@ public abstract class OuterJoinTupleIntInt<T> extends BagOperator<TupleIntInt, T
     @Override
     public void openOutBag() {
         super.openOutBag();
-        probeBuffered = new SerializedBuffer<>(new TupleIntInt.TupleIntIntSerializer());
+        probeBuffered = new SerializedBuffer<>(new TupleLongLong.TupleLongLongSerializer());
         buildDone = false;
         probeDone = false;
         reuse = false;
@@ -61,24 +64,24 @@ public abstract class OuterJoinTupleIntInt<T> extends BagOperator<TupleIntInt, T
         if (logicalInputId == 0) {
             // build side
             if (!reuse) {
-                //ht = new Int2ObjectOpenHashMap<>(1024, Int2ObjectOpenHashMap.VERY_FAST_LOAD_FACTOR);
-                ht = new Int2ObjectRBTreeMap<>();
+                //ht = new Int2ObjectOpenHashMap<>(8192);
+                ht = new Long2ObjectRBTreeMap<>();
             }
         }
     }
 
     @Override
-    public void pushInElement(TupleIntInt e, int logicalInputId) {
+    public void pushInElement(TupleLongLong e, int logicalInputId) {
         super.pushInElement(e, logicalInputId);
         if (logicalInputId == 0) { // build side
             assert !buildDone;
-            HashMapElem l = ht.get(e.f0);
+            LongArrayList l = ht.get(e.f0);
             if (l == null) {
-                l = new HashMapElem(new IntArrayList(2));
-                l.elems.add(e.f1);
+                l = new LongArrayList(2);
+                l.add(e.f1);
                 ht.put(e.f0,l);
             } else {
-                l.elems.add(e.f1);
+                l.add(e.f1);
             }
         } else { // probe side
             if (!buildDone) {
@@ -96,11 +99,10 @@ public abstract class OuterJoinTupleIntInt<T> extends BagOperator<TupleIntInt, T
             assert !buildDone;
             //LOG.info("Build side finished");
             buildDone = true;
-            for (TupleIntInt e: probeBuffered) {
+            for (TupleLongLong e: probeBuffered) {
                 probe(e);
             }
             if (probeDone) {
-                doRight();
                 out.closeBag();
             }
         } else { // probe side
@@ -109,56 +111,20 @@ public abstract class OuterJoinTupleIntInt<T> extends BagOperator<TupleIntInt, T
             //LOG.info("Probe side finished");
             probeDone = true;
             if (buildDone) {
-                doRight();
                 out.closeBag();
             }
         }
     }
 
-    private void probe(TupleIntInt p) {
-        HashMapElem l = ht.get(p.f0);
+    private void probe(TupleLongLong p) {
+        LongArrayList l = ht.get(p.f0);
         if (l != null) {
-            l.seen = true;
-            // found the key in the hashtable
-            for (int b: l.elems) {
-                inner(b, p);
-            }
-        } else {
-            // not found
-            right(p);
-        }
-    }
-
-    // Iterate on the build side and call left on not seen elements.
-    private void doRight() {
-        for (HashMapElem e: ht.values()) {
-            if (!e.seen) {
-                for (int b: e.elems) {
-                    left(b);
-                }
+            for (long b: l) {
+                udf(b, p);
             }
         }
     }
 
     // b is the `value' in the build-side, p is the whole probe-side record (the key is p.f0)
-    protected abstract void inner(int b, TupleIntInt p); // Uses out
-
-    // p is the whole probe-side record
-    protected abstract void right(TupleIntInt p); // Uses out
-
-    // b is the value of one element.
-    // (the key is not included, doRight would have to be modified to use int2ObjectEntrySet for that)
-    protected abstract void left(int b); // Uses out
-
-
-    private static final class HashMapElem {
-
-        boolean seen;
-        final IntArrayList elems;
-
-        HashMapElem(IntArrayList elems) {
-            this.seen = false;
-            this.elems = elems;
-        }
-    }
+    protected abstract void udf(long b, TupleLongLong p); // Uses out
 }

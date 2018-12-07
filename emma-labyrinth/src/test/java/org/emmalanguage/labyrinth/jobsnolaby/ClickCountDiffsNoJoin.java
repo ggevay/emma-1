@@ -16,7 +16,6 @@
 
 package org.emmalanguage.labyrinth.jobsnolaby;
 
-import org.apache.flink.api.common.functions.FlatJoinFunction;
 import org.apache.flink.api.common.functions.JoinFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.java.DataSet;
@@ -25,8 +24,7 @@ import org.apache.flink.api.java.tuple.Tuple1;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.core.fs.FileSystem;
 import org.apache.flink.core.fs.Path;
-import org.apache.flink.types.IntValue;
-import org.apache.flink.util.Collector;
+import org.apache.flink.types.LongValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,17 +53,17 @@ public class ClickCountDiffsNoJoin {
 
 			LOG.info("### Day " + day);
 
-			DataSet<Tuple1<IntValue>> visits = env.readCsvFile(pref + "in/clickLog_" + day)
+			DataSet<Tuple1<LongValue>> visits = env.readCsvFile(pref + "in/clickLog_" + day)
 					.fieldDelimiter("\t")
 					.lineDelimiter("\n")
-					.types(IntValue.class);
+					.types(LongValue.class);
 
-			DataSet<Tuple2<IntValue, IntValue>> counts = visits.map(new MapFunction<Tuple1<IntValue>, Tuple2<IntValue, IntValue>>() {
+			DataSet<Tuple2<LongValue, LongValue>> counts = visits.map(new MapFunction<Tuple1<LongValue>, Tuple2<LongValue, LongValue>>() {
 
-				Tuple2<IntValue, IntValue> reuse = Tuple2.of(new IntValue(-1),new IntValue(1));
+				Tuple2<LongValue, LongValue> reuse = Tuple2.of(new LongValue(-1),new LongValue(1));
 
 				@Override
-				public Tuple2<IntValue, IntValue> map(Tuple1<IntValue> value) throws Exception {
+				public Tuple2<LongValue, LongValue> map(Tuple1<LongValue> value) throws Exception {
 					reuse.f0 = value.f0;
 					return reuse;
 				}
@@ -73,16 +71,16 @@ public class ClickCountDiffsNoJoin {
 
 			if (day != 1) {
 
-				DataSet<Tuple2<IntValue, IntValue>> yesterdayCounts = env.readCsvFile(yesterdayCountsTmpFilename).types(IntValue.class, IntValue.class);
+				DataSet<Tuple2<LongValue, LongValue>> yesterdayCounts = env.readCsvFile(yesterdayCountsTmpFilename).types(LongValue.class, LongValue.class);
 
-				DataSet<Tuple1<IntValue>> diffs = counts.fullOuterJoin(yesterdayCounts).where(0).equalTo(0).with(new JoinFunction<Tuple2<IntValue,IntValue>, Tuple2<IntValue,IntValue>, Tuple1<IntValue>>() {
+				DataSet<Tuple1<LongValue>> diffs = counts.fullOuterJoin(yesterdayCounts).where(0).equalTo(0).with(new JoinFunction<Tuple2<LongValue,LongValue>, Tuple2<LongValue,LongValue>, Tuple1<LongValue>>() {
 
-					Tuple2<IntValue, IntValue> nulla = Tuple2.of(new IntValue(0),new IntValue(0));
+					Tuple2<LongValue, LongValue> nulla = Tuple2.of(new LongValue(0),new LongValue(0));
 
-					Tuple1<IntValue> reuse = Tuple1.of(new IntValue(-1));
+					Tuple1<LongValue> reuse = Tuple1.of(new LongValue(-1));
 
 					@Override
-					public Tuple1<IntValue> join(Tuple2<IntValue, IntValue> first, Tuple2<IntValue, IntValue> second) throws Exception {
+					public Tuple1<LongValue> join(Tuple2<LongValue, LongValue> first, Tuple2<LongValue, LongValue> second) throws Exception {
 						if (first == null) {
 							first = nulla;
 						}
@@ -94,12 +92,12 @@ public class ClickCountDiffsNoJoin {
 					}
 				});
 
-				diffs.sum(0).map(new MapFunction<Tuple1<IntValue>, String>() {
+				diffs.sum(0).map(new MapFunction<Tuple1<LongValue>, String>() {
 					@Override
-					public String map(Tuple1<IntValue> integerTuple1) throws Exception {
+					public String map(Tuple1<LongValue> integerTuple1) throws Exception {
 						return integerTuple1.f0.toString();
 					}
-				}).setParallelism(1).writeAsText(pref + "out_nojoin/expected/diff_" + day, FileSystem.WriteMode.OVERWRITE);
+				}).setParallelism(1).writeAsText(pref + "out_nojoin_flink/diff_" + day, FileSystem.WriteMode.OVERWRITE);
 			}
 
 			// Workaround for https://issues.apache.org/jira/browse/FLINK-1268

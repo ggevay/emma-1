@@ -16,14 +16,12 @@
 
 package org.emmalanguage.labyrinth.operators;
 
-public class ClickLogReader extends CFAwareFileSource<Long> {
+import org.emmalanguage.labyrinth.util.TupleLongLong;
 
-    public ClickLogReader(String baseName) {
-        super(baseName);
-    }
+public class GroupBy0Sum1TupleLongLong extends GroupBy0ReduceTupleLongLong {
 
     @Override
-    protected Long parseLine(String line) {
-        return Long.parseLong(line);
+    protected void reduceFunc(TupleLongLong e, long g) {
+        hm.replace(e.f0, e.f1 + g);
     }
 }

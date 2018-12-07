@@ -14,19 +14,21 @@
  * limitations under the License.
  */
 
-package org.emmalanguage.labyrinth.operators;
+package org.emmalanguage.labyrinth.partitioners;
 
-import org.emmalanguage.labyrinth.util.TupleIntInt;
+import org.emmalanguage.labyrinth.util.TupleLongLong;
 
-public class ClickLogReader2 extends CFAwareFileSource<TupleIntInt> {
+/**
+ * Partition a bag of Tuple2s by f0.
+ */
+public class TupleLongLongBy0 extends Partitioner<TupleLongLong> {
 
-    public ClickLogReader2(String baseName) {
-        super(baseName);
+    public TupleLongLongBy0(int targetPara) {
+        super(targetPara);
     }
 
     @Override
-    protected TupleIntInt parseLine(String line) {
-        String[] arr = line.split("\t");
-        return TupleIntInt.of(Integer.parseInt(arr[0]), Integer.parseInt(arr[1]));
+    public short getPart(TupleLongLong elem, short subpartitionId) {
+        return (short)(LongBy0.fix(elem.f0) % targetPara);
     }
 }

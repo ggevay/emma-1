@@ -16,14 +16,19 @@
 
 package org.emmalanguage.labyrinth.operators;
 
-public class ClickLogReader extends CFAwareFileSource<Long> {
+import java.io.Serializable;
 
-    public ClickLogReader(String baseName) {
-        super(baseName);
-    }
+public class SmallerThanLong extends SingletonBagOperator<Long, Boolean> implements Serializable {
 
-    @Override
-    protected Long parseLine(String line) {
-        return Long.parseLong(line);
-    }
+	private final long x;
+
+	public SmallerThanLong(long x) {
+		this.x = x;
+	}
+
+	@Override
+	public void pushInElement(Long e, int logicalInputId) {
+		super.pushInElement(e, logicalInputId);
+		out.collectElement(e < x);
+	}
 }

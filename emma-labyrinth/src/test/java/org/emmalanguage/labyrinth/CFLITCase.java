@@ -101,38 +101,19 @@ public class CFLITCase {
             throw new RuntimeException("testClickCountDiffs job failed");
         }
 
-        int[] exp = new int[]{1010, 1032, 981, 977, 978, 981, 988, 987, 958, 997, 985, 994, 1001, 987, 1007, 971, 960, 976, 1025, 1022, 971, 993, 997, 996, 1038, 985, 974, 999, 1020};
-        ClickCountDiffsInputGen.checkLabyOut(path, numDays, exp);
-
-        int nocflNumDays = numDays/10;
-        org.emmalanguage.labyrinth.jobsnolaby.ClickCountDiffs.main(new String[]{path, Integer.toString(nocflNumDays)});
-        ClickCountDiffsInputGen.checkNocflOut(path, nocflNumDays, exp);
-    }
-
-    @Test()
-    public void testClickCountDiffsScala() throws Exception {
-        LabyNode.labyNodes.clear();
-
-        String basePath = "/tmp/ClickCountITCase/";
-        FileUtils.deleteQuietly(new File(basePath));
-
-        int size = 100000;
-        int numDays = 30;
-
-        String path = ClickCountDiffsInputGen.generate(size, numDays, basePath, new Random(1234), 0.01);
-
-        boolean exceptionReceived = false;
+        boolean exceptionReceived2 = false;
         try {
             ClickCountDiffsScala.main(new String[]{path, Integer.toString(numDays), "true"});
         } catch (JobCancellationException ex) {
-            exceptionReceived = true;
+            exceptionReceived2 = true;
         }
-        if (!exceptionReceived) {
-            throw new RuntimeException("testClickCountDiffs job failed");
+        if (!exceptionReceived2) {
+            throw new RuntimeException("testClickCountDiffs_scala job failed");
         }
 
-        int[] exp = new int[]{1010, 1032, 981, 977, 978, 981, 988, 987, 958, 997, 985, 994, 1001, 987, 1007, 971, 960, 976, 1025, 1022, 971, 993, 997, 996, 1038, 985, 974, 999, 1020};
-        ClickCountDiffsInputGen.checkLabyOut(path, numDays, exp);
+        int nocflNumDays = numDays/10;
+        org.emmalanguage.labyrinth.jobsnolaby.ClickCountDiffs.main(new String[]{path, Integer.toString(nocflNumDays)});
+        ClickCountDiffsInputGen.checkOut(path, nocflNumDays);
     }
 
     @Test()

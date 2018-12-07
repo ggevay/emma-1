@@ -29,7 +29,7 @@ import java.net.URISyntaxException;
  * Can have >1 para. Set partitioning to RoundRobin.
  * However, it reads a single file non-parallel.
  */
-public abstract class CFAwareFileSource<T> extends BagOperator<Integer, T> {
+public abstract class CFAwareFileSource<T> extends BagOperator<Long, T> {
 
     private static final Logger LOG = LoggerFactory.getLogger(CFAwareFileSource.class);
 
@@ -40,7 +40,7 @@ public abstract class CFAwareFileSource<T> extends BagOperator<Integer, T> {
     }
 
     @Override
-    public void pushInElement(Integer e, int logicalInputId) {
+    public void pushInElement(Long e, int logicalInputId) {
         super.pushInElement(e, logicalInputId);
 
         try {

@@ -16,14 +16,9 @@
 
 package org.emmalanguage.labyrinth.operators;
 
-public class ClickLogReader extends CFAwareFileSource<Long> {
-
-    public ClickLogReader(String baseName) {
-        super(baseName);
-    }
-
-    @Override
-    protected Long parseLine(String line) {
-        return Long.parseLong(line);
-    }
+public class IncMapLong extends FlatMap<Long,Long> {
+	@Override
+	public void pushInElement(Long e, int logicalInputId) {
+		out.collectElement(e + 1);
+	}
 }

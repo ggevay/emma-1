@@ -14,16 +14,27 @@
  * limitations under the License.
  */
 
-package org.emmalanguage.labyrinth.operators;
+package org.emmalanguage.labyrinth.partitioners;
 
-public class ClickLogReader extends CFAwareFileSource<Long> {
+/**
+ * Partition a bag of Integers by the whole element.
+ */
+public class LongBy0 extends Partitioner<Long> {
 
-    public ClickLogReader(String baseName) {
-        super(baseName);
+    public LongBy0(int targetPara) {
+        super(targetPara);
     }
 
     @Override
-    protected Long parseLine(String line) {
-        return Long.parseLong(line);
+    public short getPart(Long elem, short subpartitionId) {
+        return (short)(fix(elem) % targetPara);
+    }
+
+    public static long fix(long l) {
+        if (l < 0) {
+            return Math.abs(l + 1);
+        } else {
+            return l;
+        }
     }
 }

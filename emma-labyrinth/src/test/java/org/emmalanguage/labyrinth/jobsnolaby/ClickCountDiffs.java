@@ -25,7 +25,7 @@ import org.apache.flink.api.java.tuple.Tuple1;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.core.fs.FileSystem;
 import org.apache.flink.core.fs.Path;
-import org.apache.flink.types.IntValue;
+import org.apache.flink.types.LongValue;
 import org.apache.flink.util.Collector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,39 +49,39 @@ public class ClickCountDiffs {
 		String todayCountsTmpFilename = pref + "tmp/todayCounts";
 		FileSystem fs = FileSystem.get(new URI(pref));
 
-		DataSet<Tuple2<IntValue, IntValue>> pageAttributes = env.readCsvFile(pref + "in/pageAttributes.tsv")
+		DataSet<Tuple2<LongValue, LongValue>> pageAttributes = env.readCsvFile(pref + "in/pageAttributes.tsv")
 				.fieldDelimiter("\t")
 				.lineDelimiter("\n")
-				.types(IntValue.class, IntValue.class);
+				.types(LongValue.class, LongValue.class);
 
 		final int days = Integer.parseInt(args[1]); // 365
 		for (int day = 1; day <= days; day++) {
 
 			LOG.info("### Day " + day);
 
-			DataSet<Tuple1<IntValue>> visits = env.readCsvFile(pref + "in/clickLog_" + day)
+			DataSet<Tuple1<LongValue>> visits = env.readCsvFile(pref + "in/clickLog_" + day)
 					.fieldDelimiter("\t")
 					.lineDelimiter("\n")
-					.types(IntValue.class);
+					.types(LongValue.class);
 
-			DataSet<IntValue> visitsFiltered = visits.join(pageAttributes).where(0).equalTo(0).with(new FlatJoinFunction<Tuple1<IntValue>, Tuple2<IntValue, IntValue>, IntValue>() {
+			DataSet<LongValue> visitsFiltered = visits.join(pageAttributes).where(0).equalTo(0).with(new FlatJoinFunction<Tuple1<LongValue>, Tuple2<LongValue, LongValue>, LongValue>() {
 
-				IntValue zero = new IntValue(0);
+				LongValue zero = new LongValue(0);
 
 				@Override
-				public void join(Tuple1<IntValue> first, Tuple2<IntValue, IntValue> second, Collector<IntValue> out) throws Exception {
+				public void join(Tuple1<LongValue> first, Tuple2<LongValue, LongValue> second, Collector<LongValue> out) throws Exception {
 					if (second.f1.equals(zero)) {
 						out.collect(first.f0);
 					}
 				}
 			});
 
-			DataSet<Tuple2<IntValue, IntValue>> counts = visitsFiltered.map(new MapFunction<IntValue, Tuple2<IntValue, IntValue>>() {
+			DataSet<Tuple2<LongValue, LongValue>> counts = visitsFiltered.map(new MapFunction<LongValue, Tuple2<LongValue, LongValue>>() {
 
-				Tuple2<IntValue, IntValue> reuse = Tuple2.of(new IntValue(-1),new IntValue(1));
+				Tuple2<LongValue, LongValue> reuse = Tuple2.of(new LongValue(-1),new LongValue(1));
 
 				@Override
-				public Tuple2<IntValue, IntValue> map(IntValue value) throws Exception {
+				public Tuple2<LongValue, LongValue> map(LongValue value) throws Exception {
 					reuse.f0 = value;
 					return reuse;
 				}
@@ -89,16 +89,16 @@ public class ClickCountDiffs {
 
 			if (day != 1) {
 
-				DataSet<Tuple2<IntValue, IntValue>> yesterdayCounts = env.readCsvFile(yesterdayCountsTmpFilename).types(IntValue.class, IntValue.class);
+				DataSet<Tuple2<LongValue, LongValue>> yesterdayCounts = env.readCsvFile(yesterdayCountsTmpFilename).types(LongValue.class, LongValue.class);
 
-				DataSet<Tuple1<IntValue>> diffs = counts.fullOuterJoin(yesterdayCounts).where(0).equalTo(0).with(new JoinFunction<Tuple2<IntValue,IntValue>, Tuple2<IntValue,IntValue>, Tuple1<IntValue>>() {
+				DataSet<Tuple1<LongValue>> diffs = counts.fullOuterJoin(yesterdayCounts).where(0).equalTo(0).with(new JoinFunction<Tuple2<LongValue,LongValue>, Tuple2<LongValue,LongValue>, Tuple1<LongValue>>() {
 
-					Tuple2<IntValue, IntValue> nulla = Tuple2.of(new IntValue(0),new IntValue(0));
+					Tuple2<LongValue, LongValue> nulla = Tuple2.of(new LongValue(0),new LongValue(0));
 
-					Tuple1<IntValue> reuse = Tuple1.of(new IntValue(-1));
+					Tuple1<LongValue> reuse = Tuple1.of(new LongValue(-1));
 
 					@Override
-					public Tuple1<IntValue> join(Tuple2<IntValue, IntValue> first, Tuple2<IntValue, IntValue> second) throws Exception {
+					public Tuple1<LongValue> join(Tuple2<LongValue, LongValue> first, Tuple2<LongValue, LongValue> second) throws Exception {
 						if (first == null) {
 							first = nulla;
 						}
@@ -110,12 +110,12 @@ public class ClickCountDiffs {
 					}
 				});
 
-				diffs.sum(0).map(new MapFunction<Tuple1<IntValue>, String>() {
+				diffs.sum(0).map(new MapFunction<Tuple1<LongValue>, String>() {
 					@Override
-					public String map(Tuple1<IntValue> integerTuple1) throws Exception {
-						return integerTuple1.f0.toString();
+					public String map(Tuple1<LongValue> longTuple1) throws Exception {
+						return longTuple1.f0.toString();
 					}
-				}).setParallelism(1).writeAsText(pref + "out/expected/diff_" + day, FileSystem.WriteMode.OVERWRITE);
+				}).setParallelism(1).writeAsText(pref + "out_flink/diff_" + day, FileSystem.WriteMode.OVERWRITE);
 			}
 
 			// Workaround for https://issues.apache.org/jira/browse/FLINK-1268

@@ -24,19 +24,15 @@ import labyrinth.LabySource
 import labyrinth.operators.CFAwareFileSink
 import labyrinth.operators.ClickLogReader
 import labyrinth.operators.ConditionNode
-import labyrinth.operators.IncMap
-import labyrinth.operators.OuterJoinTupleIntInt
-import labyrinth.operators.SmallerThan
-import labyrinth.operators.Sum
-import labyrinth.operators.SumCombiner
 import labyrinth.partitioners.Always0
 import labyrinth.partitioners.Forward
-import labyrinth.partitioners.IntegerBy0
 import labyrinth.partitioners.RoundRobin
-import labyrinth.partitioners.TupleIntIntBy0
 import labyrinth.util.TupleIntInt
-
 import labyrinth.operators._
+import org.emmalanguage.labyrinth.partitioners.LongBy0
+import org.emmalanguage.labyrinth.partitioners.TupleLongLongBy0
+import org.emmalanguage.labyrinth.util.TupleLongLong
+
 import org.apache.flink.api.common.ExecutionConfig
 import org.apache.flink.api.common.functions.MapFunction
 import org.apache.flink.api.common.typeinfo.TypeHint
@@ -51,17 +47,17 @@ import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
 import org.apache.flink.streaming.api.scala._
 
 object ClickCountDiffsScala {
-  private val typeInfoTupleIntInt =
-		new TupleTypeInfo[Tuple2[Integer, Integer]](
-			TypeInformation.of(classOf[Integer]),
-			TypeInformation.of(classOf[Integer]))
+  private val typeInfoTupleLongLong =
+		new TupleTypeInfo[Tuple2[Long, Long]](
+			TypeInformation.of(classOf[Long]),
+			TypeInformation.of(classOf[Long]))
 
   // TODO don't use classOF
-  private val integerSer = TypeInformation.of(classOf[Integer]).createSerializer(new ExecutionConfig)
+  private val longSer = TypeInformation.of(classOf[java.lang.Long]).createSerializer(new ExecutionConfig)
   private val booleanSer = TypeInformation.of(classOf[java.lang.Boolean]).createSerializer(new ExecutionConfig)
-  // TODO use TypeHin instead
-  private val tupleIntIntSer = new TupleIntInt.TupleIntIntSerializer
-  private val tuple2IntIntSerializer = TypeInformation.of(new TypeHint[Tuple2[TupleIntInt, TupleIntInt]]() {})
+  // TODO use TypeHint instead
+  private val tupleLongLongSer = new TupleLongLong.TupleLongLongSerializer
+  private val tuple2LongLongSerializer = TypeInformation.of(new TypeHint[Tuple2[TupleLongLong, TupleLongLong]]() {})
 		.createSerializer(new ExecutionConfig)
 
   @throws[Exception]
@@ -83,115 +79,116 @@ object ClickCountDiffsScala {
     val para = env.getParallelism
 
     // BB 0
-    val pageAttributesStream = env.createInput[Tuple2[Integer, Integer]](
-      new TupleCsvInputFormat[Tuple2[Integer, Integer]](new Path(pref + "in/pageAttributes.tsv"),
+    val pageAttributesStream = env.createInput[Tuple2[Long, Long]](
+      new TupleCsvInputFormat[Tuple2[Long, Long]](new Path(pref + "in/pageAttributes.tsv"),
         "\n",
-        "\t", typeInfoTupleIntInt)
+        "\t", typeInfoTupleLongLong)
     )
-      .map(new MapFunction[Tuple2[Integer, Integer], TupleIntInt]() {
+      .map(new MapFunction[Tuple2[Long, Long], TupleLongLong]() {
         @throws[Exception]
-        override def map(value: Tuple2[Integer, Integer]): TupleIntInt = TupleIntInt.of(value.f0, value.f1)
+        override def map(value: Tuple2[Long, Long]): TupleLongLong = TupleLongLong.of(value.f0, value.f1)
       }).javaStream
 
-    val pageAttributes = new LabySource[TupleIntInt](pageAttributesStream,
+    val pageAttributes = new LabySource[TupleLongLong](pageAttributesStream,
       0,
-      TypeInformation.of(new TypeHint[ElementOrEvent[TupleIntInt]]() {})
+      TypeInformation.of(new TypeHint[ElementOrEvent[TupleLongLong]]() {})
     )
 
-    @SuppressWarnings(Array("unchecked")) val yesterdayCounts_1 = new LabySource[TupleIntInt](
-      env.fromCollection[TupleIntInt](Seq()).javaStream,
+    @SuppressWarnings(Array("unchecked")) val yesterdayCounts_1 = new LabySource[TupleLongLong](
+      env.fromCollection[TupleLongLong](Seq()).javaStream,
       0,
-      TypeInformation.of(new TypeHint[ElementOrEvent[TupleIntInt]]() {})
+      TypeInformation.of(new TypeHint[ElementOrEvent[TupleLongLong]]() {})
     )
 
-    val day_1 = new LabySource[Integer](
-      env.fromCollection(List[Integer](1)).javaStream,
+    val day_1 = new LabySource[java.lang.Long](
+      env.fromCollection(List[java.lang.Long](1L)).javaStream,
       0,
-      TypeInformation.of(new TypeHint[ElementOrEvent[Integer]]() {})
+      TypeInformation.of(new TypeHint[ElementOrEvent[java.lang.Long]]() {})
     )
       .setParallelism(1)
 
     // -- Iteration starts here --   BB 1
-    val yesterdayCounts_2 = LabyNode.phi[TupleIntInt](
+    val yesterdayCounts_2 = LabyNode.phi[TupleLongLong](
       "yesterdayCounts_2",
       1,
-      new Forward[TupleIntInt](para),
-      tupleIntIntSer,
-      TypeInformation.of(new TypeHint[ElementOrEvent[TupleIntInt]]() {})
+      new Forward[TupleLongLong](para),
+      tupleLongLongSer,
+      TypeInformation.of(new TypeHint[ElementOrEvent[TupleLongLong]]() {})
     )
       .addInput(yesterdayCounts_1, false)
 
-    val day_2 = LabyNode.phi[Integer](
+    val day_2 = LabyNode.phi[java.lang.Long](
       "day_2",
       1,
-      new Always0[Integer](1),
-      integerSer, TypeInformation.of(new TypeHint[ElementOrEvent[Integer]]() {})
+      new Always0[java.lang.Long](1),
+      longSer, TypeInformation.of(new TypeHint[ElementOrEvent[java.lang.Long]]() {})
     )
       .addInput(day_1, false)
       .setParallelism(1)
 
-    val visits_1 = new LabyNode[Integer, Integer](
+    //import scala.collection.JavaConversions._
+    val visits_1 = new LabyNode[java.lang.Long, java.lang.Long](
       "visits_1",
       new ClickLogReader(pref + "in/clickLog_"),
       1,
-      new RoundRobin[Integer](para),
-      integerSer,
-      TypeInformation.of(new TypeHint[ElementOrEvent[Integer]]() {})
+      new RoundRobin[java.lang.Long](para),
+      longSer,
+      TypeInformation.of(new TypeHint[ElementOrEvent[java.lang.Long]]() {})
     )
       .addInput(day_2, true, false)
 
     //.setParallelism(1);
 
     // The inputs of the join have to be the same type (because of the union stuff), so we add a dummy tuple element.
-    val visits_1_tupleized = new LabyNode[Integer, TupleIntInt](
+    val visits_1_tupleized = new LabyNode[java.lang.Long, TupleLongLong](
       "visits_1_tupleized",
-      ScalaOps.map((e: Integer) => new TupleIntInt(e, -1)),
+      ScalaOps.map((e: java.lang.Long) => new TupleLongLong(e, -1L)),
       1,
-      new IntegerBy0(para),
-      integerSer,
-      TypeInformation.of(new TypeHint[ElementOrEvent[TupleIntInt]]() {})
+      new LongBy0(para),
+      longSer,
+      TypeInformation.of(new TypeHint[ElementOrEvent[TupleLongLong]]() {})
     )
       .addInput(visits_1, true, false)
 
-    val clicksJoined = new LabyNode[TupleIntInt, Tuple2[TupleIntInt, TupleIntInt]](
+    val clicksJoined = new LabyNode[TupleLongLong, Tuple2[TupleLongLong, TupleLongLong]](
       "preJoinedWithAttrs",
       ScalaOps.joinGeneric(e => e.f0),
       1,
-      new TupleIntIntBy0(para),
-      tupleIntIntSer,
-      TypeInformation.of(new TypeHint[ElementOrEvent[Tuple2[TupleIntInt, TupleIntInt]]]() {})
+      new TupleLongLongBy0(para),
+      tupleLongLongSer,
+      TypeInformation.of(new TypeHint[ElementOrEvent[Tuple2[TupleLongLong, TupleLongLong]]]() {})
     )
       .addInput(pageAttributes, false)
       .addInput(visits_1_tupleized, true, false)
 
-    val clicksMapped = new LabyNode[Tuple2[TupleIntInt, TupleIntInt], TupleIntInt] (
+    val clicksMapped = new LabyNode[Tuple2[TupleLongLong, TupleLongLong], TupleLongLong] (
       "joinedWithAttrs",
-      ScalaOps.flatMap[Tuple2[TupleIntInt, TupleIntInt], TupleIntInt] (
-        (t, out) => { if (t.f0.f1 == 0) { out.collectElement(new TupleIntInt(t.f1.f0, 1)) } }
+      ScalaOps.flatMap[Tuple2[TupleLongLong, TupleLongLong], TupleLongLong] (
+        (t, out) => { if (t.f0.f1 == 0) { out.collectElement(new TupleLongLong(t.f1.f0, 1)) } }
       ),
       1,
-      new Always0[Tuple2[TupleIntInt, TupleIntInt]](para),
-      tuple2IntIntSerializer,
-      TypeInformation.of(new TypeHint[ElementOrEvent[TupleIntInt]]() {})
+      new Always0[Tuple2[TupleLongLong, TupleLongLong]](para),
+      tuple2LongLongSerializer,
+      TypeInformation.of(new TypeHint[ElementOrEvent[TupleLongLong]]() {})
     )
       .addInput(clicksJoined, true, false)
 
-    val counts = new LabyNode[TupleIntInt, TupleIntInt](
+    val counts = new LabyNode[TupleLongLong, TupleLongLong](
       "counts",
-      ScalaOps.reduceGroup( (t:TupleIntInt) => t.f0, (a,b) => new TupleIntInt(a.f0, a.f1 + b.f1) ),
+      ScalaOps.reduceGroup( (t:TupleLongLong) => t.f0, (a,b) => new TupleLongLong(a.f0, a.f1 + b.f1) ),
       1,
-      new TupleIntIntBy0(para),
-      tupleIntIntSer,
-      TypeInformation.of(new TypeHint[ElementOrEvent[TupleIntInt]]() {})
+      new TupleLongLongBy0(para),
+      tupleLongLongSer,
+      TypeInformation.of(new TypeHint[ElementOrEvent[TupleLongLong]]() {})
     )
       .addInput(clicksMapped, true, false)
 
-    val notFirstDay = new LabyNode[Integer, java.lang.Boolean](
+    val notFirstDay = new LabyNode[java.lang.Long, java.lang.Boolean](
       "notFirstDay",
       ScalaOps.singletonBagOperator(e => !(e==1)),
       1,
-      new Always0[Integer](1),
-      integerSer,
+      new Always0[java.lang.Long](1),
+      longSer,
       TypeInformation.of(new TypeHint[ElementOrEvent[java.lang.Boolean]]() {})
     )
       .addInput(day_2, true, false)
@@ -212,48 +209,49 @@ object ClickCountDiffsScala {
     // TODO
     // -- then branch   BB 2
     // The join of joinedYesterday is merged into this operator
-    val diffs = new LabyNode[TupleIntInt, Integer](
+    val diffs = new LabyNode[TupleLongLong, java.lang.Long](
       "diffs",
-      new OuterJoinTupleIntInt[Integer]() {
-        override protected def inner(b: Int, p: TupleIntInt): scala.Unit = out.collectElement(Math.abs(b - p.f1))
+      new OuterJoinTupleLongLong[java.lang.Long]() {
+        override protected def inner(b: Long, p: TupleLongLong): scala.Unit =
+          out.collectElement(Math.abs(b - p.f1))
 
-        override protected def right(p: TupleIntInt): scala.Unit = out.collectElement(p.f1)
+        override protected def right(p: TupleLongLong): scala.Unit = out.collectElement(p.f1)
 
-        override protected def left(b: Int): scala.Unit = out.collectElement(b)},
+        override protected def left(b: Long): scala.Unit = out.collectElement(b)},
       2,
-      new TupleIntIntBy0(para),
-      tupleIntIntSer,
-      TypeInformation.of(new TypeHint[ElementOrEvent[Integer]]() {})
+      new TupleLongLongBy0(para),
+      tupleLongLongSer,
+      TypeInformation.of(new TypeHint[ElementOrEvent[java.lang.Long]]() {})
     )
       .addInput(yesterdayCounts_2, false, true)
       .addInput(counts, false, true)
 
-    val sumCombiner = new LabyNode[Integer, Integer](
+    val sumCombiner = new LabyNode[java.lang.Long, java.lang.Long](
       "sumCombiner",
-      new SumCombiner,
+      new SumCombinerLong,
       2,
-      new Forward[Integer](para),
-      integerSer,
-      TypeInformation.of(new TypeHint[ElementOrEvent[Integer]]() {})
+      new Forward[java.lang.Long](para),
+      longSer,
+      TypeInformation.of(new TypeHint[ElementOrEvent[java.lang.Long]]() {})
     )
       .addInput(diffs, true, false)
 
-    val sum = new LabyNode[Integer, Integer](
+    val sum = new LabyNode[java.lang.Long, java.lang.Long](
       "sum",
-      new Sum,
+      new SumLong,
       2,
-      new Always0[Integer](1),
-      integerSer,
-      TypeInformation.of(new TypeHint[ElementOrEvent[Integer]]() {})
+      new Always0[java.lang.Long](1),
+      longSer,
+      TypeInformation.of(new TypeHint[ElementOrEvent[java.lang.Long]]() {})
     )
       .addInput(sumCombiner, true, false)
       .setParallelism(1)
 
-    val printSum = new LabyNode[Integer, labyrinth.util.Unit]("printSum",
-      new CFAwareFileSink(pref + "out/diff_"),
+    val printSum = new LabyNode[java.lang.Long, labyrinth.util.Unit]("printSum",
+      new CFAwareFileSink(pref + "out_scala/diff_"),
       2,
-      new Always0[Integer](1),
-      integerSer,
+      new Always0[java.lang.Long](1),
+      longSer,
       TypeInformation.of(new TypeHint[ElementOrEvent[labyrinth.util.Unit]]() {})
     )
       .addInput(day_2, false, true)
@@ -263,25 +261,25 @@ object ClickCountDiffsScala {
     // (We "optimize away" yesterdayCounts_3, since it would be an IdMap)
     yesterdayCounts_2.addInput(counts, false, true)
 
-    val day_3 = new LabyNode[Integer, Integer](
+    val day_3 = new LabyNode[java.lang.Long, java.lang.Long](
       "day_3",
-      new IncMap,
+      new IncMapLong,
       3,
-      new Always0[Integer](1),
-      integerSer,
-      TypeInformation.of(new TypeHint[ElementOrEvent[Integer]]() {})
+      new Always0[java.lang.Long](1),
+      longSer,
+      TypeInformation.of(new TypeHint[ElementOrEvent[java.lang.Long]]() {})
     )
       .addInput(day_2, false, false)
       .setParallelism(1)
 
     day_2.addInput(day_3, false, true)
 
-    val notLastDay = new LabyNode[Integer, java.lang.Boolean](
+    val notLastDay = new LabyNode[java.lang.Long, java.lang.Boolean](
       "notLastDay",
-      new SmallerThan(args(1).toInt + 1),
+      new SmallerThanLong(args(1).toLong + 1),
       3,
-      new Always0[Integer](1),
-      integerSer,
+      new Always0[java.lang.Long](1),
+      longSer,
       TypeInformation.of(new TypeHint[ElementOrEvent[java.lang.Boolean]]() {})
     )
       .addInput(day_3, true, false)
