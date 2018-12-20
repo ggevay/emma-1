@@ -66,7 +66,7 @@ public class CFLITCase {
 
     @Test(expected=JobCancellationException.class)
     public void testSimpleCFDataSize() throws Exception {
-        SimpleCFDataSize.main(new String[]{"50", "500"});
+        SimpleCFDataSize.main(new String[]{"500", "500000"});
     }
 
     @Test(expected=JobCancellationException.class)
