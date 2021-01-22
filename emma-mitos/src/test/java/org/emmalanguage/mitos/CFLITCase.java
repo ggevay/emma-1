@@ -35,12 +35,15 @@ import java.util.Random;
 
 public class CFLITCase {
 
+    // Some of the tests expect JobCancellationException. These are those that have not been updated
+    // to use Util.executeWithCatch.
+
     @Test(expected=JobCancellationException.class)
     public void testNoCFOld() throws Exception {
         NoCF.main(null);
     }
 
-    @Test(expected=JobCancellationException.class)
+    @Test()
     public void testNoCFNew() throws Exception {
         LabyNode.labyNodes.clear();
         org.emmalanguage.mitos.jobs.NoCF.main(null);
@@ -56,7 +59,7 @@ public class CFLITCase {
         SimpleCF.main(new String[]{"100"});
     }
 
-    @Test(expected=JobCancellationException.class)
+    @Test()
     public void testSimpleCFNew() throws Exception {
         LabyNode.labyNodes.clear();
         org.emmalanguage.mitos.jobs.SimpleCF.main(new String[]{"100"});
@@ -89,15 +92,7 @@ public class CFLITCase {
 
         String path = ClickCountDiffsInputGen.generate(size, numDays, basePath, new Random(1234), 0.01);
 
-        boolean exceptionReceived = false;
-        try {
-            org.emmalanguage.mitos.jobs.ClickCountDiffs.main(new String[]{path, Integer.toString(numDays), "true"});
-        } catch (JobCancellationException ex) {
-            exceptionReceived = true;
-        }
-        if (!exceptionReceived) {
-            throw new RuntimeException("testClickCountDiffs job failed");
-        }
+        org.emmalanguage.mitos.jobs.ClickCountDiffs.main(new String[]{path, Integer.toString(numDays), "true"});
 
         int[] exp = new int[]{1010, 1032, 981, 977, 978, 981, 988, 987, 958, 997, 985, 994, 1001, 987, 1007, 971, 960, 976, 1025, 1022, 971, 993, 997, 996, 1038, 985, 974, 999, 1020};
         ClickCountDiffsInputGen.checkLabyOut(path, numDays, exp);
@@ -133,7 +128,7 @@ public class CFLITCase {
         ClickCountDiffsInputGen.checkLabyOut(path, numDays, exp);
     }
 
-    @Test(expected=JobCancellationException.class)
+    @Test()
     public void testControlFlowMicrobenchmark() throws Exception {
         LabyNode.labyNodes.clear();
 

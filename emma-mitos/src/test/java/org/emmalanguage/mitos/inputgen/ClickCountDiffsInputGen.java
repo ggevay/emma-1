@@ -72,7 +72,7 @@ public class ClickCountDiffsInputGen {
 
     static public void checkLabyOut(String path, int numDays, int[] expected) throws IOException {
         for (int i = 2; i <= numDays; i++) {
-            String actString = readFile(path + "/out/diff_" + i, StandardCharsets.UTF_8);
+            String actString = readFile(path + "/out/laby/diff_" + i, StandardCharsets.UTF_8);
             int act = Integer.parseInt(actString.trim());
             if (act != expected[i - 2]) {
                 throw new RuntimeException("ClickCountDiffs output is incorrect on day " + i);
@@ -82,7 +82,7 @@ public class ClickCountDiffsInputGen {
 
     static public void checkNocflOut(String path, int numDays, int[] expected) throws IOException {
         for (int i = 2; i <= numDays; i++) {
-            String actString = readFile(path + "/out/expected/diff_" + i, StandardCharsets.UTF_8);
+            String actString = readFile(path + "/out/flinksep/diff_" + i, StandardCharsets.UTF_8);
             int act = Integer.parseInt(actString.trim());
             if (act != expected[i - 2]) {
                 throw new RuntimeException("ClickCountDiffs output is incorrect on day " + i);
