@@ -357,12 +357,12 @@ public class BagOperatorHost<IN, OUT>
 			outCFLSizesRemove();
 			workInProgress = false;
 			if(outCFLSizes.size() > 0) { // if there is pending work
-				if (CFLConfig.vlog) LOG.info("Out.closeBag starting a new out bag {" + name + "}");
+				if (CFLConfig.vlog) LOG.info("MyCollector.closeBag starting a new out bag {" + name + "}");
 				// Note: outs' buffers will be discarded from this, but this is not a problem, because everything that has to be sent
 				// has been already sent
 				startOutBagCheckBarrier();
 			} else {
-				if (CFLConfig.vlog) LOG.info("Out.closeBag not starting a new out bag {" + name + "}");
+				if (CFLConfig.vlog) LOG.info("MyCollector.closeBag not starting a new out bag {" + name + "}");
 				if (terminalBBReached) { // if there is no pending work, and none would come later
 					cflMan.unsubscribe(cb);
 					es.shutdown();
@@ -371,7 +371,7 @@ public class BagOperatorHost<IN, OUT>
 		}
 
 		@Override
-		public void appendToCfl(int bbId) {
+		public void appendToCfl(int[] bbId) {
 			cflMan.appendToCFL(bbId);
 		}
 

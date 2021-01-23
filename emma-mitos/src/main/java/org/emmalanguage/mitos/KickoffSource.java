@@ -52,9 +52,7 @@ public class KickoffSource extends RichSourceFunction<Unit> {
 		assert cflConfig.numToSubscribe != -10;
 		cflManager.specifyNumToSubscribe(cflConfig.numToSubscribe);
 
-		for(int bb: kickoffBBs) {
-			cflManager.appendToCFL(bb);
-		}
+		cflManager.appendToCFL(kickoffBBs);
 	}
 
 	@Override
