@@ -20,7 +20,6 @@ package org.emmalanguage.mitos;
 import eu.stratosphere.mitos.BagID;
 import eu.stratosphere.mitos.CFLCallback;
 import eu.stratosphere.mitos.CFLManager;
-import org.apache.flink.streaming.api.operators.StreamingRuntimeContext;
 import org.emmalanguage.mitos.operators.ReusingBagOperator;
 import org.emmalanguage.mitos.operators.BagOperator;
 import org.emmalanguage.mitos.operators.DontThrowAwayInputBufs;
@@ -77,15 +76,15 @@ public class BagOperatorHost<IN, OUT>
 
 	// ----------------------
 
-	protected List<Integer> latestCFL; // note that this is the same object instance as in CFLManager
+	protected final List<Integer> cfl = new ArrayList<>(); // note that this is the same object instance as in CFLManager
 	protected Queue<Integer> outCFLSizes; // if not empty, then we are working on the first one; if empty, then we are not working
 
-	public ArrayList<Out> outs = new ArrayList<>(); // conditional and normal outputs
+	public final ArrayList<Out> outs = new ArrayList<>(); // conditional and normal outputs
 
 	private volatile boolean terminalBBReached;
 
-	private HashSet<BagID> notifyCloseInputs = new HashSet<>();
-	private HashSet<BagID> notifyCloseInputEmpties = new HashSet<>();
+	private final HashSet<BagID> notifyCloseInputs = new HashSet<>();
+	private final HashSet<BagID> notifyCloseInputEmpties = new HashSet<>();
 
 	private boolean consumed = false;
 
@@ -429,7 +428,7 @@ public class BagOperatorHost<IN, OUT>
 		assert !outCFLSizes.isEmpty();
 		Integer outCFLSize = outCFLSizes.peek();
 
-		assert latestCFL.get(outCFLSize - 1).equals(bbId) || this instanceof MutableBagCC;
+		assert cfl.get(outCFLSize - 1).equals(bbId) || this instanceof MutableBagCC;
 
 		workInProgress = true;
 
@@ -475,7 +474,7 @@ public class BagOperatorHost<IN, OUT>
 				inputCFLSize = outCFLSize;
 			} else {
 				int i;
-				for (i = outCFLSize - 2; input.bbId != latestCFL.get(i); i--) {}
+				for (i = outCFLSize - 2; input.bbId != cfl.get(i); i--) {}
 				inputCFLSize = i + 1;
 			}
 
@@ -537,7 +536,7 @@ public class BagOperatorHost<IN, OUT>
 		// I think the "remove buffer if complicated CFG condition" will be needed here
 	}
 
-	protected boolean updateOutCFLSizes(List<Integer> cfl) {
+	protected boolean updateOutCFLSizes() {
 		if (cfl.get(cfl.size() - 1).equals(bbId)) {
 			outCFLSizes.add(cfl.size());
 			return true;
@@ -547,27 +546,28 @@ public class BagOperatorHost<IN, OUT>
 
 	private class MyCFLCallback implements CFLCallback {
 
-		public void notify(List<Integer> cfl) {
+		public void notifyCFLElement(int cflElement) {
 			synchronized (es) {
-				//List<Integer> cfl = new ArrayList<>(cfl0);
 				es.submit(new Runnable() {
 					@Override
 					public void run() {
 						try {
 							synchronized (BagOperatorHost.this) {
-								latestCFL = cfl;
+								cfl.add(cflElement);
 
-								if (CFLConfig.vlog) LOG.info("CFL notification: " + latestCFL + " {" + name + "}");
+								if (CFLConfig.vlog) LOG.info("CFL notification: " + cfl + " {" + name + "}");
 
 								// Note: the handling of outs has to be before the startOutBag call, because that will throw away buffers
 								// (and it often happens that reaching a BB triggers both of these things).
 
+								int tmpCFLSize = cfl.size();
 								for (Out o : outs) {
-									o.notifyAppendToCFL(cfl);
+									o.notifyAppendToCFL();
 								}
+								assert cfl.size() == tmpCFLSize;
 
 								//boolean workInProgress = outCFLSizes.size() > 0;
-								boolean hasAdded = updateOutCFLSizes(cfl);
+								boolean hasAdded = updateOutCFLSizes();
 								if (!workInProgress && hasAdded) {
 									startOutBagCheckBarrier();
 								} else {
@@ -794,8 +794,8 @@ public class BagOperatorHost<IN, OUT>
 					targetReached = true;
 				} else {
 					// We don't need +1 for outCFLSize, because it is already the element _after_ outCFL like this
-					for (int i = outCFLSize; i < latestCFL.size(); i++) {
-						int cfli = latestCFL.get(i);
+					for (int i = outCFLSize; i < cfl.size(); i++) {
+						int cfli = cfl.get(i);
 						if (cfli == targetBbId) {
 							targetReached = true;
 						}
@@ -816,7 +816,7 @@ public class BagOperatorHost<IN, OUT>
 			}
 		}
 
-		void notifyAppendToCFL(List<Integer> cfl) {
+		void notifyAppendToCFL() {
 			// isActive would not be good here, because it happens that a formerly active should be sent only now because of a notify.
 			if (!normal && (state == OutState.DAMMING || state == OutState.WAITING)) {
 				if (cfl.get(cfl.size() - 1).equals(targetBbId)) {
