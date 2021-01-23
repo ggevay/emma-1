@@ -572,11 +572,11 @@ public class BagOperatorHost<IN, OUT>
 									startOutBagCheckBarrier();
 								} else {
 									if (CFLConfig.vlog)
-										LOG.info("[" + name + "] CFLCallback.notify not starting an out bag, because workInProgress=" + workInProgress + ", hasAdded=" + hasAdded + ", outCFLSizes.size()=" + outCFLSizes.size());
+										LOG.info("[" + name + "] CFLCallback.notifyCFLElement not starting an out bag, because workInProgress=" + workInProgress + ", hasAdded=" + hasAdded + ", outCFLSizes.size()=" + outCFLSizes.size());
 								}
 							}
 						} catch (Throwable t) {
-							LOG.error("Unhandled exception in MyCFLCallback.notify: " + ExceptionUtils.stringifyException(t));
+							LOG.error("Unhandled exception in MyCFLCallback.notifyCFLElement: " + ExceptionUtils.stringifyException(t));
 							System.err.println(ExceptionUtils.stringifyException(t));
 							System.exit(8);
 						}
