@@ -596,29 +596,24 @@ public class BagOperatorHost<IN, OUT>
 		}
 	}
 
-	private FileSystem fs = null;
 	private void writeSnapshot() {
-		if (fs == null) {
-			try {
-				fs = FileSystem.get(new URI(cflMan.getCheckpointDir()));
-			} catch (IOException | URISyntaxException e) {
-				throw new RuntimeException(e);
-			}
-		}
-
 		int checkpointId = checkpointCFLSizes.remove();
 
 		//System.out.println("name: " + name + ", getOperatorName(): " + getOperatorName());
 
 		try {
-			Path dir = new Path(cflMan.getCheckpointDir() + "/" + checkpointId); // todo: minor: do it in the coordinator
-			fs.mkdirs(dir);
-			Path file = new Path(dir + "/" + name + "-" + subpartitionId);
-			BufferedOutputStream stream = new BufferedOutputStream(fs.create(file, FileSystem.WriteMode.OVERWRITE), 1024*1024);
+			Path file = new Path(cflMan.getPathForCheckpointId(checkpointId) + "/" + name + "-" + subpartitionId);
+
+			BufferedOutputStream stream = new BufferedOutputStream(cflMan.snapshotFS.create(file, FileSystem.WriteMode.OVERWRITE), 1024*1024);
+
 			DataOutputView dataOutputView = new DataOutputViewStreamWrapper(stream);
 			dataOutputView.writeInt(numSavedElements);
 			dataOutputView.write(savedBag.toByteArray());
 			stream.close();
+
+			cflMan.operatorSnapshotCompleteLocal(checkpointId);
+
+
 
 //			// Reading
 //			DataInputView dataInputView = new DataInputViewStreamWrapper(fs.open(new Path("")));
