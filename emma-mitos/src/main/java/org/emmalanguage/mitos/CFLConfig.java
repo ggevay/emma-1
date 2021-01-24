@@ -21,7 +21,7 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import java.io.Serializable;
 
 public class CFLConfig implements Serializable {
-    private static CFLConfig sing = new CFLConfig();
+    private static final CFLConfig sing = new CFLConfig();
 
     public static CFLConfig getInstance() {
         return sing;
@@ -53,8 +53,13 @@ public class CFLConfig implements Serializable {
     public boolean reuseInputs = true;
 
 
+    public boolean shouldEnableCheckpointing = false; // propagates to CFLManager only if true
+    public static final int checkpointIntervalNotSet = -27;
+    public int checkpointInterval = checkpointIntervalNotSet; // propagates to CFLManager only if set
+    public String checkpointDir = null; // propagates to CFLManager only if not null
 
-    public static final boolean vlog = false;
+
+    public static final boolean vlog = true;
 
     public static final boolean logStartEnd = false;
 }
