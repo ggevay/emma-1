@@ -22,6 +22,7 @@ import eu.stratosphere.mitos.CFLCallback;
 import eu.stratosphere.mitos.CFLManager;
 import org.apache.flink.core.fs.FileSystem;
 import org.apache.flink.core.fs.Path;
+import org.apache.flink.core.memory.*;
 import org.emmalanguage.mitos.operators.ReusingBagOperator;
 import org.emmalanguage.mitos.operators.BagOperator;
 import org.emmalanguage.mitos.operators.DontThrowAwayInputBufs;
@@ -42,6 +43,7 @@ import org.apache.flink.util.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.Serializable;
 import java.net.URI;
@@ -68,6 +70,7 @@ public class BagOperatorHost<IN, OUT>
 	private CFLConfig cflConfig;
 	public int opID = -1;
 	public TypeSerializer<IN> inSer;
+	public TypeSerializer<OUT> outSer;
 
 	// ---------------------- Initialized in setup (i.e., on TM):
 
@@ -84,6 +87,9 @@ public class BagOperatorHost<IN, OUT>
 	protected final List<Integer> cfl = new ArrayList<>();
 	protected final Queue<Integer> outCFLSizes = new ArrayDeque<>(); // if not empty, then we are working on the first one; if empty, then we are not working
 	private final Queue<Integer> checkpointCFLSizes = new ArrayDeque<>();
+
+	private ByteArrayDataOutputView savedBag;
+	private int numSavedElements;
 
 	public final ArrayList<Out> outs = new ArrayList<>(); // conditional and normal outputs
 
@@ -310,6 +316,14 @@ public class BagOperatorHost<IN, OUT>
 		@Override
 		public void collectElement(OUT e) {
 			numElements++;
+			if (cflMan.isCheckpointingEnabled()) {
+				try {
+					outSer.serialize(e, savedBag);
+					numSavedElements++;
+				} catch (IOException ioException) {
+					throw new RuntimeException(ioException);
+				}
+			}
 			//assert outs.size() != 0; // If the operator wants to emit an element but there are no outs, then we just probably forgot to call .out()
 			for(Out o: outs) {
 				o.collectElement(e);
@@ -404,7 +418,7 @@ public class BagOperatorHost<IN, OUT>
 				op.pushInElement(e, logicalInputId);
 			}
 		} catch (NullPointerException npe) {
-			throw new RuntimeException();
+			throw new RuntimeException(npe);
 		}
 	}
 
@@ -443,6 +457,11 @@ public class BagOperatorHost<IN, OUT>
 		consumed = false;
 
 		shouldLogStart = true;
+
+		if (cflMan.isCheckpointingEnabled()) {
+			savedBag = new ByteArrayDataOutputView(65536);
+			numSavedElements = 0;
+		}
 
 		chooseOuts(); // This is only needed for MutableBag
 
@@ -559,18 +578,21 @@ public class BagOperatorHost<IN, OUT>
 		// We have to write if two conditions hold:
 		// 1. We know about a checkpoint to do;
 		// 2. The currently saved bag would not be overwritten before we reach that checkpoint.
+		assert !workInProgress; // We need this because savedBag has to be a complete bag
 		if (!checkpointCFLSizes.isEmpty() && (outCFLSizes.isEmpty() || outCFLSizes.peek() > checkpointCFLSizes.peek())) {
 			if (CFLConfig.vlog) LOG.info("{" + name + "} decided to write a snapshot");
-			//todo: write it
-			//  - async
+
+			//todo: async (but first test without this)
 			//  	- submit to an ExecutorService
 			//			- create one just for this
 			//		- don't forget to take the saved bag's reference before it is overwritten (before submit)
+
+			//todo: (but first test without this)
 			//  - possibly just link the previous one
 
 			writeSnapshot();
 
-			//todo: notify coordinator that we are done
+			//TODO: notify coordinator that we are done
 		}
 	}
 
@@ -586,9 +608,24 @@ public class BagOperatorHost<IN, OUT>
 
 		int checkpointId = checkpointCFLSizes.remove();
 
-		String dir = cflMan.getCheckpointDir();
+		//System.out.println("name: " + name + ", getOperatorName(): " + getOperatorName());
+
 		try {
-			fs.create(new Path(dir + "/" + checkpointId), FileSystem.WriteMode.OVERWRITE);
+			Path dir = new Path(cflMan.getCheckpointDir() + "/" + checkpointId); // todo: minor: do it in the coordinator
+			fs.mkdirs(dir);
+			Path file = new Path(dir + "/" + name + "-" + subpartitionId);
+			BufferedOutputStream stream = new BufferedOutputStream(fs.create(file, FileSystem.WriteMode.OVERWRITE), 1024*1024);
+			DataOutputView dataOutputView = new DataOutputViewStreamWrapper(stream);
+			dataOutputView.writeInt(numSavedElements);
+			dataOutputView.write(savedBag.toByteArray());
+			stream.close();
+
+//			// Reading
+//			DataInputView dataInputView = new DataInputViewStreamWrapper(fs.open(new Path("")));
+//			int num = dataInputView.readInt();
+//			for (int i = 0; i < num; i++)
+//				outSer.deserialize(dataInputView);
+
 		} catch (IOException e) {
 			throw new RuntimeException(e);
 		}
@@ -623,14 +660,15 @@ public class BagOperatorHost<IN, OUT>
 
 								//boolean workInProgress = outCFLSizes.size() > 0;
 								boolean hasAdded = updateOutCFLSizes();
+								if (!workInProgress) {
+									writeSnapshotIfNeeded();
+								}
 								if (!workInProgress && hasAdded) {
 									startOutBagCheckBarrier();
 								} else {
 									if (CFLConfig.vlog)
 										LOG.info("[" + name + "] CFLCallback.notifyCFLElement not starting an out bag, because workInProgress=" + workInProgress + ", hasAdded=" + hasAdded + ", outCFLSizes.size()=" + outCFLSizes.size());
 								}
-
-								writeSnapshotIfNeeded();
 							}
 						} catch (Throwable t) {
 							LOG.error("Unhandled exception in MyCFLCallback.notifyCFLElement: " + ExceptionUtils.stringifyException(t));

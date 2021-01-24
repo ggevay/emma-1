@@ -134,14 +134,25 @@ public class CFLITCase {
 
     @Test()
     public void testCheckpointing() throws Exception {
-        FileUtils.deleteQuietly(new File(CFLManager.defaultCheckpointDir));
-
         CFLConfig cflConfig = CFLConfig.getInstance();
-        cflConfig.shouldEnableCheckpointing = true;
-        cflConfig.checkpointInterval = 10;
-        cflConfig.checkpointDir = CFLManager.defaultCheckpointDir;
+        try {
+            FileUtils.deleteQuietly(new File(CFLManager.defaultCheckpointDir));
 
-        testClickCountDiffsMitos();
+            cflConfig.shouldEnableCheckpointing = true;
+            cflConfig.checkpointInterval = 10;
+            cflConfig.checkpointDir = CFLManager.defaultCheckpointDir;
+
+            testClickCountDiffsMitos();
+
+            //TODO: check:
+            // - there is a lastCompleteSnapshot file
+            // - there are only complete snapshots
+            // - all snapshots have the same number of files
+            // - number of top-level dirs/files (includes number of snapshots)
+
+        } finally {
+            cflConfig.shouldEnableCheckpointing = false;
+        }
     }
 
 //    @Test()

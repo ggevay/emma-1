@@ -263,6 +263,7 @@ public class LabyNode<IN, OUT> extends AbstractLabyNode<OUT> {
         if (bagOpHost.inSer == null) {
             bagOpHost.inSer = ((ElementOrEvent.ElementOrEventSerializer)inputStream.getType().createSerializer(inputStream.getExecutionConfig())).elementSerializer;
         }
+        bagOpHost.outSer = ((ElementOrEvent.ElementOrEventSerializer)typeInfo.createSerializer(env.getConfig())).elementSerializer;
 
         assert inputStream != null;
         SingleOutputStreamOperator<ElementOrEvent<OUT>> tmpFlinkStream =
