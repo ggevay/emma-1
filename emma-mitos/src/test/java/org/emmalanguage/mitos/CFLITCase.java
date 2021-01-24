@@ -132,13 +132,15 @@ public class CFLITCase {
         ControlFlowMicrobenchmark.main(new String[]{"100", "200"});
     }
 
+    private final String ckpDir = "/tmp/mitos-checkpoints";
+
     @Test()
-    public void testCheckpointing() throws Exception {
+    public void testSnapshotWriting() throws Exception {
         CFLConfig cflConfig = CFLConfig.getInstance();
         try {
             cflConfig.shouldEnableCheckpointing = true;
             cflConfig.checkpointInterval = 10;
-            cflConfig.checkpointDir = "/tmp/mitos-checkpoints";
+            cflConfig.checkpointDir = ckpDir;
             FileUtils.deleteQuietly(new File(cflConfig.checkpointDir));
 
             String path = setupClickCount();
@@ -150,6 +152,25 @@ public class CFLITCase {
             // - there are only complete snapshots
             // - all snapshots have the same number of files
             // - number of top-level dirs/files (includes number of snapshots)
+
+        } finally {
+            cflConfig.shouldEnableCheckpointing = false;
+        }
+    }
+
+    @Test()
+    public void testSnapshotRestore() throws Exception {
+        CFLConfig cflConfig = CFLConfig.getInstance();
+        try {
+            cflConfig.shouldEnableCheckpointing = true;
+            cflConfig.checkpointInterval = 10;
+            cflConfig.checkpointDir = ckpDir;
+            FileUtils.deleteQuietly(new File(cflConfig.checkpointDir));
+
+            FileUtils.copyDirectory(new File("/home/gabor/Dropbox/mitos-checkpoints-torestore"), new File(cflConfig.checkpointDir));
+
+            String path = setupClickCount();
+            org.emmalanguage.mitos.jobs.ClickCountDiffsNoJoin.main(new String[]{path, Integer.toString(clickCountNumDays), "true"});
 
         } finally {
             cflConfig.shouldEnableCheckpointing = false;

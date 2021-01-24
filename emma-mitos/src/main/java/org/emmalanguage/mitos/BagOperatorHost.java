@@ -84,7 +84,7 @@ public class BagOperatorHost<IN, OUT>
 
 	// ----------------------
 
-	protected final List<Integer> cfl = new ArrayList<>();
+	protected List<Integer> cfl = new ArrayList<>();
 	protected final Queue<Integer> outCFLSizes = new ArrayDeque<>(); // if not empty, then we are working on the first one; if empty, then we are not working
 	private final Queue<Integer> checkpointCFLSizes = new ArrayDeque<>();
 
@@ -591,8 +591,6 @@ public class BagOperatorHost<IN, OUT>
 			//  - possibly just link the previous one
 
 			writeSnapshot();
-
-			//TODO: notify coordinator that we are done
 		}
 	}
 
@@ -602,28 +600,25 @@ public class BagOperatorHost<IN, OUT>
 		//System.out.println("name: " + name + ", getOperatorName(): " + getOperatorName());
 
 		try {
-			Path file = new Path(cflMan.getPathForCheckpointId(checkpointId) + "/" + name + "-" + subpartitionId);
-
+			Path file = getPathForSnapshotFile(checkpointId);
 			BufferedOutputStream stream = new BufferedOutputStream(cflMan.snapshotFS.create(file, FileSystem.WriteMode.NO_OVERWRITE), 1024*1024);
-
 			DataOutputView dataOutputView = new DataOutputViewStreamWrapper(stream);
 			dataOutputView.writeInt(numSavedElements);
 			dataOutputView.write(savedBag.toByteArray());
 			stream.close();
 
 			cflMan.operatorSnapshotCompleteLocal(checkpointId);
-
-
-
-//			// Reading
-//			DataInputView dataInputView = new DataInputViewStreamWrapper(fs.open(new Path("")));
-//			int num = dataInputView.readInt();
-//			for (int i = 0; i < num; i++)
-//				outSer.deserialize(dataInputView);
-
 		} catch (IOException e) {
 			throw new RuntimeException(e);
 		}
+	}
+
+	private Path getPathForSnapshotFile(int checkpointId) {
+		return new Path(cflMan.getPathForCheckpointId(checkpointId) + "/" + name + "-" + subpartitionId);
+	}
+
+	private Path getCompletedPathForSnapshotFile(int checkpointId) {
+		return new Path(cflMan.getCompletedPathForCheckpointId(checkpointId) + "/" + name + "-" + subpartitionId);
 	}
 
 	private class MyCFLCallback implements CFLCallback {
@@ -651,7 +646,7 @@ public class BagOperatorHost<IN, OUT>
 								for (Out o : outs) {
 									o.notifyAppendToCFL();
 								}
-								assert cfl.size() == tmpCFLSize;
+								assert cfl.size() == tmpCFLSize; //todo: neha ez az assert failel
 
 								//boolean workInProgress = outCFLSizes.size() > 0;
 								boolean hasAdded = updateOutCFLSizes();
@@ -773,6 +768,25 @@ public class BagOperatorHost<IN, OUT>
 		@Override
 		public int getOpID() {
 			return BagOperatorHost.this.opID;
+		}
+
+		public void startFromSnapshot(int checkpointId, List<Integer> givenCfl) {
+			// TODO: this needs to do submit to parallelize between the operators
+			assert cfl.isEmpty();
+			cfl = givenCfl;
+			try {
+				Path file = getCompletedPathForSnapshotFile(checkpointId);
+				DataInputView dataInputView = new DataInputViewStreamWrapper(cflMan.snapshotFS.open(file));
+				int num = dataInputView.readInt();
+				for (int i = 0; i < num; i++) {
+					OUT e = outSer.deserialize(dataInputView);
+					for(Out o: outs) {
+						o.collectElement(e);
+					}
+				}
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
 		}
 	}
 
