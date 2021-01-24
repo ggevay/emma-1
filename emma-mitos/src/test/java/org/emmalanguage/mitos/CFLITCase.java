@@ -136,15 +136,16 @@ public class CFLITCase {
     public void testCheckpointing() throws Exception {
         CFLConfig cflConfig = CFLConfig.getInstance();
         try {
-            FileUtils.deleteQuietly(new File(CFLManager.defaultCheckpointDir));
-
             cflConfig.shouldEnableCheckpointing = true;
             cflConfig.checkpointInterval = 10;
-            cflConfig.checkpointDir = CFLManager.defaultCheckpointDir;
+            cflConfig.checkpointDir = "/tmp/mitos-checkpoints";
+            FileUtils.deleteQuietly(new File(cflConfig.checkpointDir));
 
-            testClickCountDiffsMitos();
+            String path = setupClickCount();
+            org.emmalanguage.mitos.jobs.ClickCountDiffsNoJoin.main(new String[]{path, Integer.toString(clickCountNumDays), "true"});
 
             //TODO: check:
+            // - the program output
             // - there is a lastCompleteSnapshot file
             // - there are only complete snapshots
             // - all snapshots have the same number of files

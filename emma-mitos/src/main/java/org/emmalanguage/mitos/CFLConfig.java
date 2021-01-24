@@ -59,7 +59,7 @@ public class CFLConfig implements Serializable {
     public String checkpointDir = null; // propagates to CFLManager only if not null
 
 
-    public static final boolean vlog = true;
+    public static final boolean vlog = false;
 
     public static final boolean logStartEnd = false;
 }

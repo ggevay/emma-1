@@ -604,7 +604,7 @@ public class BagOperatorHost<IN, OUT>
 		try {
 			Path file = new Path(cflMan.getPathForCheckpointId(checkpointId) + "/" + name + "-" + subpartitionId);
 
-			BufferedOutputStream stream = new BufferedOutputStream(cflMan.snapshotFS.create(file, FileSystem.WriteMode.OVERWRITE), 1024*1024);
+			BufferedOutputStream stream = new BufferedOutputStream(cflMan.snapshotFS.create(file, FileSystem.WriteMode.NO_OVERWRITE), 1024*1024);
 
 			DataOutputView dataOutputView = new DataOutputViewStreamWrapper(stream);
 			dataOutputView.writeInt(numSavedElements);
