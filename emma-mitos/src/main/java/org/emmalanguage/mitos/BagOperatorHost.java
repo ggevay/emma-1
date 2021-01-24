@@ -623,50 +623,72 @@ public class BagOperatorHost<IN, OUT>
 
 	private class MyCFLCallback implements CFLCallback {
 
-		public void notifyCFLElement(int cflElement, boolean checkpoint) {
+		List<Runnable> waitList = new ArrayList<>(); //todo: populate
+		volatile boolean waitingForSnapshottingInit = true;
+
+		private void admitWaitList() {
 			synchronized (es) {
-				es.submit(new Runnable() {
-					@Override
-					public void run() {
-						try {
-							synchronized (BagOperatorHost.this) {
-								if (CFLConfig.vlog) LOG.info("CFL notification: " + cflElement + " {" + name + "}");
+				waitingForSnapshottingInit = false;
+				if (waitList.size() != 0) {
+					LOG.info("admitWaitList -- waitList.size: " + waitList.size());
+				}
+				for (Runnable r : waitList) {
+					es.submit(r);
+				}
+				waitList.clear();
+			}
+		}
 
-								cfl.add(cflElement);
+		public void notifyCFLElement(int cflElement, boolean checkpoint) {
+			Runnable r = new Runnable() {
+				@Override
+				public void run() {
+					try {
+						synchronized (BagOperatorHost.this) {
+							if (CFLConfig.vlog) LOG.info("CFL notification: " + cflElement + " {" + name + "}");
 
-								if (checkpoint) {
-									assert cflMan.isCheckpointingEnabled();
-									checkpointCFLSizes.add(cfl.size());
-								}
+							cfl.add(cflElement);
 
-								// Note: the handling of outs has to be before the startOutBag call, because that will throw away buffers
-								// (and it often happens that reaching a BB triggers both of these things).
-
-								int tmpCFLSize = cfl.size();
-								for (Out o : outs) {
-									o.notifyAppendToCFL();
-								}
-								assert cfl.size() == tmpCFLSize; //todo: neha ez az assert failel
-
-								//boolean workInProgress = outCFLSizes.size() > 0;
-								boolean hasAdded = updateOutCFLSizes();
-								if (!workInProgress) {
-									writeSnapshotIfNeeded();
-								}
-								if (!workInProgress && hasAdded) {
-									startOutBagCheckBarrier();
-								} else {
-									if (CFLConfig.vlog)
-										LOG.info("[" + name + "] CFLCallback.notifyCFLElement not starting an out bag, because workInProgress=" + workInProgress + ", hasAdded=" + hasAdded + ", outCFLSizes.size()=" + outCFLSizes.size());
-								}
+							if (checkpoint) {
+								assert cflMan.isCheckpointingEnabled();
+								checkpointCFLSizes.add(cfl.size());
 							}
-						} catch (Throwable t) {
-							LOG.error("Unhandled exception in MyCFLCallback.notifyCFLElement: " + ExceptionUtils.stringifyException(t));
-							System.err.println(ExceptionUtils.stringifyException(t));
-							System.exit(8);
+
+							// Note: the handling of outs has to be before the startOutBag call, because that will throw away buffers
+							// (and it often happens that reaching a BB triggers both of these things).
+
+							int tmpCFLSize = cfl.size();
+							for (Out o : outs) {
+								o.notifyAppendToCFL();
+							}
+							assert cfl.size() == tmpCFLSize : "cfl.size(): " + cfl.size() + ", tmpCFLSize: " + tmpCFLSize + ", cfl: " + Arrays.toString(cfl.toArray()); //todo: meg mindig neha ez az assert failel (mostmar majdnem mindig inkabb deadlock van, de azert neha meg mindig assert)
+
+							//boolean workInProgress = outCFLSizes.size() > 0;
+							boolean hasAdded = updateOutCFLSizes();
+							if (!workInProgress) {
+								writeSnapshotIfNeeded();
+							}
+							if (!workInProgress && hasAdded) {
+								startOutBagCheckBarrier();
+							} else {
+								if (CFLConfig.vlog)
+									LOG.info("[" + name + "] CFLCallback.notifyCFLElement not starting an out bag, because workInProgress=" + workInProgress + ", hasAdded=" + hasAdded + ", outCFLSizes.size()=" + outCFLSizes.size());
+							}
 						}
+					} catch (Throwable t) {
+						LOG.error("Unhandled exception in MyCFLCallback.notifyCFLElement: " + ExceptionUtils.stringifyException(t));
+						System.err.println(ExceptionUtils.stringifyException(t));
+						System.exit(8);
 					}
-				});
+				}
+			};
+			synchronized (es) {
+				if (waitingForSnapshottingInit) {
+					waitList.add(r);
+				} else {
+					assert waitList.isEmpty();
+					es.submit(r);
+				}
 			}
 		}
 
@@ -675,93 +697,111 @@ public class BagOperatorHost<IN, OUT>
 			// If this doesn't go through es, then we have the problem that notify submits on subscribe,
 			// and this notify would have to insert something into outCFLSizes, but it hasn't inserted it yet
 			// when we reach the outCFLSizes check here.
-			synchronized (es) {
-				es.submit(new Runnable() {
-					@Override
-					public void run() {
-						try {
-							LOG.info("CFL notifyTerminalBB {" + name + "}");
-							synchronized (BagOperatorHost.this) {
-								terminalBBReached = true;
-								if (outCFLSizes.isEmpty()) {
-									// We have to unsubscribe before shutdown, because we get broadcast notifications
-									// even when we are finished, when others are still working.
-									cflMan.unsubscribe(cb);
-									es.shutdown();
-								}
+			Runnable r = new Runnable() {
+				@Override
+				public void run() {
+					try {
+						LOG.info("CFL notifyTerminalBB {" + name + "}");
+						synchronized (BagOperatorHost.this) {
+							terminalBBReached = true;
+							if (outCFLSizes.isEmpty()) {
+								// We have to unsubscribe before shutdown, because we get broadcast notifications
+								// even when we are finished, when others are still working.
+								cflMan.unsubscribe(cb);
+								es.shutdown();
 							}
-						} catch (Throwable t) {
-							LOG.error("Unhandled exception in MyCFLCallback.notifyTerminalBB: " + ExceptionUtils.stringifyException(t));
-							System.err.println(ExceptionUtils.stringifyException(t));
-							System.exit(8);
 						}
+					} catch (Throwable t) {
+						LOG.error("Unhandled exception in MyCFLCallback.notifyTerminalBB: " + ExceptionUtils.stringifyException(t));
+						System.err.println(ExceptionUtils.stringifyException(t));
+						System.exit(8);
 					}
-				});
+				}
+			};
+			synchronized (es) {
+				if (waitingForSnapshottingInit) {
+					waitList.add(r);
+				} else {
+					assert waitList.isEmpty();
+					es.submit(r);
+				}
 			}
 		}
 
 		@Override
 		public void notifyCloseInput(BagID bagID, int opID) {
 			if (opID == BagOperatorHost.this.opID || opID == CFLManager.CloseInputBag.emptyBag) {
-				synchronized (es) {
-					es.submit(new Runnable() {
-						@Override
-						public void run() {
-							try {
-								synchronized (BagOperatorHost.this) {
-									assert !notifyCloseInputs.contains(bagID);
-									notifyCloseInputs.add(bagID);
+				Runnable r = new Runnable() {
+					@Override
+					public void run() {
+						try {
+							synchronized (BagOperatorHost.this) {
+								assert !notifyCloseInputs.contains(bagID);
+								notifyCloseInputs.add(bagID);
 
-									if (opID == CFLManager.CloseInputBag.emptyBag) {
-										notifyCloseInputEmpties.add(bagID);
-									}
+								if (opID == CFLManager.CloseInputBag.emptyBag) {
+									notifyCloseInputEmpties.add(bagID);
+								}
 
-									for (Input inp : inputs) {
-										//assert inp.currentBagID != null; // This no longer works, because we broadcast closeInput
-										if (bagID.equals(inp.currentBagID)) {
+								for (Input inp : inputs) {
+									//assert inp.currentBagID != null; // This no longer works, because we broadcast closeInput
+									if (bagID.equals(inp.currentBagID)) {
 
-											if (opID == CFLManager.CloseInputBag.emptyBag) {
-												// The EmptyFromEmpty marker interface is not needed here, because consumed = true doesn't mess up things
-												// even when the result bag will not be empty.
-												consumed = true;
-											}
-
-											inp.closeCurrentInBag();
+										if (opID == CFLManager.CloseInputBag.emptyBag) {
+											// The EmptyFromEmpty marker interface is not needed here, because consumed = true doesn't mess up things
+											// even when the result bag will not be empty.
+											consumed = true;
 										}
+
+										inp.closeCurrentInBag();
 									}
 								}
-							} catch (Throwable t) {
-								LOG.error("Unhandled exception in MyCFLCallback.notifyCloseInput: " + ExceptionUtils.stringifyException(t));
-								System.err.println(ExceptionUtils.stringifyException(t));
-								System.exit(8);
 							}
+						} catch (Throwable t) {
+							LOG.error("Unhandled exception in MyCFLCallback.notifyCloseInput: " + ExceptionUtils.stringifyException(t));
+							System.err.println(ExceptionUtils.stringifyException(t));
+							System.exit(8);
 						}
-					});
+					}
+				};
+				synchronized (es) {
+					if (waitingForSnapshottingInit) {
+						waitList.add(r);
+					} else {
+						assert waitList.isEmpty();
+						es.submit(r);
+					}
 				}
 			}
 		}
 
 		@Override
 		public void notifyBarrierAllReached(int cflSize) {
-			synchronized (es) {
-				es.submit(new Runnable() {
-					@Override
-					public void run() {
-						synchronized (BagOperatorHost.this) {
-							assert CFLManager.barrier;
-							barrierAllReachedCFLSize = cflSize;
-							if (CFLConfig.vlog)
-								LOG.info("notifyBarrierAllReached {" + name + "} cflSize = " + cflSize + ", workInProgress = " + workInProgress);
-							if (!workInProgress) {
-								if (!outCFLSizes.isEmpty()) {
-									if (CFLConfig.vlog)
-										LOG.info("notifyBarrierAllReached {" + name + "} calling startOutBagCheckBarrier");
-									startOutBagCheckBarrier();
-								}
+			Runnable r = new Runnable() {
+				@Override
+				public void run() {
+					synchronized (BagOperatorHost.this) {
+						assert CFLManager.barrier;
+						barrierAllReachedCFLSize = cflSize;
+						if (CFLConfig.vlog)
+							LOG.info("notifyBarrierAllReached {" + name + "} cflSize = " + cflSize + ", workInProgress = " + workInProgress);
+						if (!workInProgress) {
+							if (!outCFLSizes.isEmpty()) {
+								if (CFLConfig.vlog)
+									LOG.info("notifyBarrierAllReached {" + name + "} calling startOutBagCheckBarrier");
+								startOutBagCheckBarrier();
 							}
 						}
 					}
-				});
+				}
+			};
+			synchronized (es) {
+				if (waitingForSnapshottingInit) {
+					waitList.add(r);
+				} else {
+					assert waitList.isEmpty();
+					es.submit(r);
+				}
 			}
 		}
 
@@ -770,23 +810,37 @@ public class BagOperatorHost<IN, OUT>
 			return BagOperatorHost.this.opID;
 		}
 
+		public void startNormally() {
+			admitWaitList();
+		}
+
 		public void startFromSnapshot(int checkpointId, List<Integer> givenCfl) {
-			// TODO: this needs to do submit to parallelize between the operators
-			assert cfl.isEmpty();
-			cfl = givenCfl;
-			try {
-				Path file = getCompletedPathForSnapshotFile(checkpointId);
-				DataInputView dataInputView = new DataInputViewStreamWrapper(cflMan.snapshotFS.open(file));
-				int num = dataInputView.readInt();
-				for (int i = 0; i < num; i++) {
-					OUT e = outSer.deserialize(dataInputView);
-					for(Out o: outs) {
-						o.collectElement(e);
+			Runnable r = new Runnable() {
+				@Override
+				public void run() {
+					synchronized (BagOperatorHost.this) {
+						assert cfl.isEmpty();
+						cfl = givenCfl;
+						try {
+							Path file = getCompletedPathForSnapshotFile(checkpointId);
+							DataInputView dataInputView = new DataInputViewStreamWrapper(cflMan.snapshotFS.open(file));
+							int num = dataInputView.readInt();
+							for (int i = 0; i < num; i++) {
+								OUT e = outSer.deserialize(dataInputView);
+								for (Out o : outs) {
+									o.collectElement(e);
+								}
+							}
+						} catch (IOException e) {
+							e.printStackTrace();
+						}
 					}
 				}
-			} catch (IOException e) {
-				e.printStackTrace();
+			};
+			synchronized (es) {
+				es.submit(r);
 			}
+			admitWaitList();
 		}
 	}
 
