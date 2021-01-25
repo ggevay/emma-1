@@ -52,6 +52,7 @@ import java.net.URISyntaxException;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 
 public class BagOperatorHost<IN, OUT>
@@ -114,7 +115,9 @@ public class BagOperatorHost<IN, OUT>
 
 	private boolean workInProgress = false;
 
-	private ExecutorService es; // This might not be serializable so better initialize it in setup
+	// These might not be serializable so better initialize them in setup:
+	private ExecutorService es;
+	private ExecutorService snapshotEs;
 
 	private final boolean reuseInputs;
 
@@ -192,10 +195,13 @@ public class BagOperatorHost<IN, OUT>
 
 		op.giveInputSerializer(inSer);
 
+		cflMan = getRuntimeContext().getCFLManager();
+
 		es = Executors.newSingleThreadExecutor();
 
-		//cflMan = CFLManager.getSing();
-		cflMan = getRuntimeContext().getCFLManager();
+		if (cflMan.isCheckpointingEnabled() && needSnapshotting()) {
+			snapshotEs = Executors.newSingleThreadExecutor();
+		}
 
 		cflMan.specifyTerminalBB(terminalBBId);
 		cflMan.specifyNumToSubscribe(cflConfig.numToSubscribe);
@@ -399,8 +405,7 @@ public class BagOperatorHost<IN, OUT>
 			} else {
 				if (CFLConfig.vlog) LOG.info("MyCollector.closeBag not starting a new out bag {" + name + "}");
 				if (terminalBBReached) { // if there is no pending work, and none would come later
-					cflMan.unsubscribe(cb);
-					es.shutdown();
+					shutdown();
 				}
 			}
 		}
@@ -609,25 +614,39 @@ public class BagOperatorHost<IN, OUT>
 	}
 
 	private void writeSnapshot() {
-		int checkpointId = checkpointCFLSizes.remove();
+		final int checkpointId = checkpointCFLSizes.remove();
 
 		//System.out.println("name: " + name + ", getOperatorName(): " + getOperatorName());
 
-		try {
-			if (needSnapshotting()) {
-				Path file = getPathForSnapshotFile(checkpointId);
-				FileSystem.WriteMode writeMode = cflMan.didStartFromSnapshot ? FileSystem.WriteMode.OVERWRITE : FileSystem.WriteMode.NO_OVERWRITE; // to overwrite incomplete ones
-				BufferedOutputStream stream = new BufferedOutputStream(cflMan.snapshotFS.create(file, writeMode), 1024 * 1024);
-				DataOutputView dataOutputView = new DataOutputViewStreamWrapper(stream);
-				dataOutputView.writeInt(savedBagCflSize);
-				dataOutputView.writeInt(numSavedElements);
-				dataOutputView.write(savedBag.toByteArray());
-				stream.close();
-			}
-
+		if (!needSnapshotting()) {
 			cflMan.operatorSnapshotCompleteLocal(checkpointId);
-		} catch (IOException e) {
-			throw new RuntimeException(e);
+		} else {
+			final ByteArrayDataOutputView savedBagCopiedRef = savedBag;
+			final int savedBagCflSizeCopied = savedBagCflSize;
+			final int numSavedElementsCopied = numSavedElements;
+
+			snapshotEs.submit(new Runnable() {
+				@Override
+				public void run() {
+					try {
+						Path file = getPathForSnapshotFile(checkpointId);
+						FileSystem.WriteMode writeMode =
+								cflMan.didStartFromSnapshot ? FileSystem.WriteMode.OVERWRITE : FileSystem.WriteMode.NO_OVERWRITE; // overwrite old incomplete ones
+						BufferedOutputStream stream = new BufferedOutputStream(cflMan.snapshotFS.create(file, writeMode), 1024 * 1024);
+						DataOutputView dataOutputView = new DataOutputViewStreamWrapper(stream);
+						dataOutputView.writeInt(savedBagCflSizeCopied);
+						dataOutputView.writeInt(numSavedElementsCopied);
+						dataOutputView.write(savedBagCopiedRef.toByteArray());
+						stream.close();
+
+						cflMan.operatorSnapshotCompleteLocal(checkpointId);
+					} catch (Throwable t) {
+						LOG.error("Unhandled exception in writeSnapshot: " + ExceptionUtils.stringifyException(t));
+						//System.err.println(ExceptionUtils.stringifyException(t));
+						System.exit(9);
+					}
+				}
+			});
 		}
 	}
 
@@ -724,10 +743,7 @@ public class BagOperatorHost<IN, OUT>
 						synchronized (BagOperatorHost.this) {
 							terminalBBReached = true;
 							if (outCFLSizes.isEmpty()) {
-								// We have to unsubscribe before shutdown, because we get broadcast notifications
-								// even when we are finished, when others are still working.
-								cflMan.unsubscribe(cb);
-								es.shutdown();
+								shutdown();
 							}
 						}
 					} catch (Throwable t) {
@@ -904,6 +920,22 @@ public class BagOperatorHost<IN, OUT>
 	}
 
 	private boolean inStartFromSnapshot = false;
+
+	void shutdown() {
+		if (cflMan.isCheckpointingEnabled() && needSnapshotting()) {
+			// Let's wait for all snapshot writing to complete
+			try {
+				snapshotEs.shutdown();
+				snapshotEs.awaitTermination(100, TimeUnit.DAYS);
+			} catch (InterruptedException e) {
+				throw new RuntimeException(e);
+			}
+		}
+		// We have to unsubscribe before shutdown, because we get broadcast notifications
+		// even when we are finished, when others are still working.
+		cflMan.unsubscribe(cb);
+		es.shutdown();
+	}
 
 	// This overload is for manual job building. The auto builder uses the other one.
 	public BagOperatorHost<IN, OUT> out(int splitId, int targetBbId, boolean normal, Partitioner<OUT> partitioner) {
