@@ -197,6 +197,10 @@ public class BagOperatorHost<IN, OUT>
 		cflMan.specifyNumToSubscribe(cflConfig.numToSubscribe);
 	}
 
+	private String getNameAndIndex() {
+		return "{" + name + "[" + subpartitionId +"]}";
+	}
+
 	@Override
 	public void open() throws Exception {
 		super.open();
@@ -432,8 +436,7 @@ public class BagOperatorHost<IN, OUT>
 
 	synchronized private void startOutBagCheckBarrier() {
 		if(!CFLManager.barrier) {
-			if (CFLConfig.vlog)
-				LOG.info("[" + name + "] CFLCallback.notify starting an out bag");
+			if (CFLConfig.vlog) LOG.info("{" + name + "}[" + subpartitionId + "] startOutBagCheckBarrier, cflSize: " + cfl.size());
 			startOutBag();
 		} else {
 			assert !outCFLSizes.isEmpty();
@@ -604,7 +607,8 @@ public class BagOperatorHost<IN, OUT>
 
 		try {
 			Path file = getPathForSnapshotFile(checkpointId);
-			BufferedOutputStream stream = new BufferedOutputStream(cflMan.snapshotFS.create(file, FileSystem.WriteMode.NO_OVERWRITE), 1024*1024);
+			FileSystem.WriteMode writeMode = cflMan.didStartFromSnapshot ? FileSystem.WriteMode.OVERWRITE : FileSystem.WriteMode.NO_OVERWRITE; // to overwrite incomplete ones
+			BufferedOutputStream stream = new BufferedOutputStream(cflMan.snapshotFS.create(file, writeMode), 1024*1024);
 			DataOutputView dataOutputView = new DataOutputViewStreamWrapper(stream);
 			dataOutputView.writeInt(savedBagCflSize);
 			dataOutputView.writeInt(numSavedElements);
@@ -644,12 +648,13 @@ public class BagOperatorHost<IN, OUT>
 		}
 
 		public void notifyCFLElement(int cflElement, boolean checkpoint) {
+			if (CFLConfig.vlog) LOG.info("notifyCFLElement " + getNameAndIndex() + ": " + cflElement);
 			Runnable r = new Runnable() {
 				@Override
 				public void run() {
 					try {
 						synchronized (BagOperatorHost.this) {
-							if (CFLConfig.vlog) LOG.info("CFL notification: " + cflElement + " {" + name + "}");
+							if (CFLConfig.vlog) LOG.info("CFL notification: " + cflElement + " CFL notification{" + name + "}");
 
 							cfl.add(cflElement);
 
@@ -858,7 +863,8 @@ public class BagOperatorHost<IN, OUT>
 
 							BagID[] inputBagIDsArr = new BagID[0]; // "tehat mindenhonnan varunk"
 							BagID outBagID = new BagID(readBagCflSize, opID);
-							//////////////if (num > 0 || consumed || inputBagIDs.size() == 0) {
+							// Following if copied from MyCollector.closeBag
+							//if (num > 0 || consumed || inputBagIDs.size() == 0) {
 							if (true) {
 								// In the inputBagIDs.size() == 0 case we have to send, because in this case checkForClosingProduced expects from everywhere
 								// (because of the s.inputs.size() == 0) at its beginning)
