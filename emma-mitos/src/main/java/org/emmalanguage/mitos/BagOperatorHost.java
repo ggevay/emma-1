@@ -395,17 +395,17 @@ public class BagOperatorHost<IN, OUT>
 		public void appendToCfl(int[] bbId) {
 			cflMan.appendToCFL(bbId);
 		}
+	}
 
-		private int correctBroadcast(int numElements) {
-			if (outs.size() > 0 && outs.get(0).partitioner instanceof Broadcast) {
-				for (Out o: outs) {
-					// We have a limitation that if an output is a broadcast output, then all of them has to be broadcast
-					assert o.partitioner instanceof Broadcast;
-				}
-				return numElements * outs.get(0).partitioner.targetPara;
-			} else {
-				return numElements;
+	private int correctBroadcast(int numElements) {
+		if (outs.size() > 0 && outs.get(0).partitioner instanceof Broadcast) {
+			for (Out o: outs) {
+				// We have a limitation that if an output is a broadcast output, then all of them has to be broadcast
+				assert o.partitioner instanceof Broadcast;
 			}
+			return numElements * outs.get(0).partitioner.targetPara;
+		} else {
+			return numElements;
 		}
 	}
 
@@ -831,6 +831,22 @@ public class BagOperatorHost<IN, OUT>
 									o.collectElement(e);
 								}
 							}
+							for (Out o : outs) {
+								o.closeBag();
+							}
+
+							BagID[] inputBagIDsArr = new BagID[0]; // "tehat mindenhonnan varunk"
+							BagID outBagID = new BagID(outCFLSizes.peek(), opID);
+							//////////////if (num > 0 || consumed || inputBagIDs.size() == 0) {
+							if (true) {
+								// In the inputBagIDs.size() == 0 case we have to send, because in this case checkForClosingProduced expects from everywhere
+								// (because of the s.inputs.size() == 0) at its beginning)
+								if (!(BagOperatorHost.this instanceof MutableBagCC && ((MutableBagCC.MutableBagOperator)op).inpID == 2)) {
+									num = correctBroadcast(num);
+									cflMan.producedLocal(outBagID, inputBagIDsArr, num, para, subpartitionId, opID);
+								}
+							}
+
 						} catch (IOException e) {
 							e.printStackTrace();
 						}
