@@ -73,6 +73,10 @@ public class BagOperatorHost<IN, OUT>
 	public TypeSerializer<IN> inSer;
 	public TypeSerializer<OUT> outSer;
 
+	// The following two are needed for snapshotting:
+	public boolean fromLabyNodeTranslation = false;
+	public boolean hasBlockCrossingOut = false; // This is accurate only if fromLabyNodeTranslation
+
 	// ---------------------- Initialized in setup (i.e., on TM):
 
 	public short subpartitionId = -25;
@@ -201,6 +205,10 @@ public class BagOperatorHost<IN, OUT>
 		return "{" + name + "[" + subpartitionId +"]}";
 	}
 
+	boolean needSnapshotting() {
+		return !fromLabyNodeTranslation || hasBlockCrossingOut;
+	}
+
 	@Override
 	public void open() throws Exception {
 		super.open();
@@ -322,7 +330,7 @@ public class BagOperatorHost<IN, OUT>
 		@Override
 		public void collectElement(OUT e) {
 			numElements++;
-			if (cflMan.isCheckpointingEnabled()) {
+			if (cflMan.isCheckpointingEnabled() && needSnapshotting()) {
 				try {
 					outSer.serialize(e, savedBag);
 					numSavedElements++;
@@ -463,7 +471,7 @@ public class BagOperatorHost<IN, OUT>
 
 		shouldLogStart = true;
 
-		if (cflMan.isCheckpointingEnabled()) {
+		if (cflMan.isCheckpointingEnabled() && needSnapshotting()) {
 			savedBag = new ByteArrayDataOutputView(65536);
 			savedBagCflSize = outCFLSize;
 			numSavedElements = 0;
@@ -606,14 +614,16 @@ public class BagOperatorHost<IN, OUT>
 		//System.out.println("name: " + name + ", getOperatorName(): " + getOperatorName());
 
 		try {
-			Path file = getPathForSnapshotFile(checkpointId);
-			FileSystem.WriteMode writeMode = cflMan.didStartFromSnapshot ? FileSystem.WriteMode.OVERWRITE : FileSystem.WriteMode.NO_OVERWRITE; // to overwrite incomplete ones
-			BufferedOutputStream stream = new BufferedOutputStream(cflMan.snapshotFS.create(file, writeMode), 1024*1024);
-			DataOutputView dataOutputView = new DataOutputViewStreamWrapper(stream);
-			dataOutputView.writeInt(savedBagCflSize);
-			dataOutputView.writeInt(numSavedElements);
-			dataOutputView.write(savedBag.toByteArray());
-			stream.close();
+			if (needSnapshotting()) {
+				Path file = getPathForSnapshotFile(checkpointId);
+				FileSystem.WriteMode writeMode = cflMan.didStartFromSnapshot ? FileSystem.WriteMode.OVERWRITE : FileSystem.WriteMode.NO_OVERWRITE; // to overwrite incomplete ones
+				BufferedOutputStream stream = new BufferedOutputStream(cflMan.snapshotFS.create(file, writeMode), 1024 * 1024);
+				DataOutputView dataOutputView = new DataOutputViewStreamWrapper(stream);
+				dataOutputView.writeInt(savedBagCflSize);
+				dataOutputView.writeInt(numSavedElements);
+				dataOutputView.write(savedBag.toByteArray());
+				stream.close();
+			}
 
 			cflMan.operatorSnapshotCompleteLocal(checkpointId);
 		} catch (IOException e) {
@@ -840,42 +850,44 @@ public class BagOperatorHost<IN, OUT>
 							assert cfl.isEmpty();
 							cfl = givenCfl;
 
-							Path file = getCompletedPathForSnapshotFile(checkpointId);
-							DataInputView dataInputView = new DataInputViewStreamWrapper(cflMan.snapshotFS.open(file));
+							if (needSnapshotting()) {
+								Path file = getCompletedPathForSnapshotFile(checkpointId);
+								DataInputView dataInputView = new DataInputViewStreamWrapper(cflMan.snapshotFS.open(file));
 
-							int readBagCflSize = dataInputView.readInt();
+								int readBagCflSize = dataInputView.readInt();
 
-							chooseOuts(); // This is only needed for MutableBag
-							for(Out o: outs) {
-								o.startOutBag(readBagCflSize);
-							}
-
-							int num = dataInputView.readInt();
-							for (int i = 0; i < num; i++) {
-								OUT e = outSer.deserialize(dataInputView);
+								chooseOuts(); // This is only needed for MutableBag
 								for (Out o : outs) {
-									o.collectElement(e);
+									o.startOutBag(readBagCflSize);
 								}
-							}
-							for (Out o : outs) {
-								o.closeBag();
-							}
 
-							BagID[] inputBagIDsArr = new BagID[0]; // "tehat mindenhonnan varunk"
-							BagID outBagID = new BagID(readBagCflSize, opID);
-							// Following if copied from MyCollector.closeBag
-							//if (num > 0 || consumed || inputBagIDs.size() == 0) {
-							if (true) {
-								// In the inputBagIDs.size() == 0 case we have to send, because in this case checkForClosingProduced expects from everywhere
-								// (because of the s.inputs.size() == 0) at its beginning)
-								if (!(BagOperatorHost.this instanceof MutableBagCC && ((MutableBagCC.MutableBagOperator)op).inpID == 2)) {
-									num = correctBroadcast(num);
-									cflMan.producedLocal(outBagID, inputBagIDsArr, num, para, subpartitionId, opID);
+								int num = dataInputView.readInt();
+								for (int i = 0; i < num; i++) {
+									OUT e = outSer.deserialize(dataInputView);
+									for (Out o : outs) {
+										o.collectElement(e);
+									}
 								}
-							}
+								for (Out o : outs) {
+									o.closeBag();
+								}
 
+								BagID[] inputBagIDsArr = new BagID[0]; // "tehat mindenhonnan varunk"
+								BagID outBagID = new BagID(readBagCflSize, opID);
+								// Following if copied from MyCollector.closeBag
+								//if (num > 0 || consumed || inputBagIDs.size() == 0) {
+								if (true) {
+									// In the inputBagIDs.size() == 0 case we have to send, because in this case checkForClosingProduced expects from everywhere
+									// (because of the s.inputs.size() == 0) at its beginning)
+									if (!(BagOperatorHost.this instanceof MutableBagCC && ((MutableBagCC.MutableBagOperator) op).inpID == 2)) {
+										num = correctBroadcast(num);
+										cflMan.producedLocal(outBagID, inputBagIDsArr, num, para, subpartitionId, opID);
+									}
+								}
+
+								LOG.info("Operator {" + name + "}[" + subpartitionId + "]" + " startFromSnapshot sent " + num + " elements, with cflSize: " + readBagCflSize);
+							}
 							inStartFromSnapshot = false;
-							LOG.info("Operator {" + name + "}[" + subpartitionId + "]" + " startFromSnapshot sent " + num + " elements, with cflSize: " + readBagCflSize);
 						}
 					} catch (Throwable t) {
 						LOG.error("Unhandled exception in MyCFLCallback.startFromSnapshot: " + ExceptionUtils.stringifyException(t));
