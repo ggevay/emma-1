@@ -601,11 +601,6 @@ public class BagOperatorHost<IN, OUT>
 		if (!checkpointCFLSizes.isEmpty() && (outCFLSizes.isEmpty() || outCFLSizes.peek() > checkpointCFLSizes.peek())) {
 			if (CFLConfig.vlog) LOG.info("{" + name + "} decided to write a snapshot");
 
-			//todo: async (but first test without this)
-			//  	- submit to an ExecutorService
-			//			- create one just for this
-			//		- don't forget to take the saved bag's reference before it is overwritten (before submit)
-
 			//todo: (but first test without this)
 			//  - possibly just link the previous one
 
@@ -660,7 +655,7 @@ public class BagOperatorHost<IN, OUT>
 
 	private class MyCFLCallback implements CFLCallback {
 
-		List<Runnable> waitList = new ArrayList<>(); //todo: populate
+		List<Runnable> waitList = new ArrayList<>();
 		volatile boolean waitingForSnapshottingInit = true;
 
 		private void admitWaitList() {
@@ -699,7 +694,7 @@ public class BagOperatorHost<IN, OUT>
 							for (Out o : outs) {
 								o.notifyAppendToCFL();
 							}
-							assert cfl.size() == tmpCFLSize : "cfl.size(): " + cfl.size() + ", tmpCFLSize: " + tmpCFLSize + ", cfl: " + Arrays.toString(cfl.toArray()); //todo: meg mindig neha ez az assert failel (mostmar majdnem mindig inkabb deadlock van, de azert neha meg mindig assert)
+							assert cfl.size() == tmpCFLSize : "cfl.size(): " + cfl.size() + ", tmpCFLSize: " + tmpCFLSize + ", cfl: " + Arrays.toString(cfl.toArray());
 
 							//boolean workInProgress = outCFLSizes.size() > 0;
 							boolean hasAdded = updateOutCFLSizes();
